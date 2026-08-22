@@ -1,0 +1,19 @@
+{
+  "name": "left-730-dead",
+  "version": "1.0.0",
+  "description": "730 Society Zombie Horde Survival Game Engine & Stream Overlay",
+  "type": "module",
+  "main": "server/src/index.js",
+  "scripts": {
+    "start": "node server/src/index.js",
+    "dev": "node --watch server/src/index.js",
+    "test": "node --test"
+  },
+  "keywords": ["game", "zombies", "stream-overlay", "discord-bot", "websockets"],
+  "author": "730 Society",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}

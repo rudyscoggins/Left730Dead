@@ -1,0 +1,9 @@
+services:
+  left-730-dead:
+    build: .
+    container_name: left-730-dead
+    restart: unless-stopped
+    ports:
+      - "7300:7300"
+    environment:
+      - PORT=7300

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Left 730 Dead - Dusk to Dawn Stream Engine</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Header HUD -->
+  <header>
+    <div class="brand">
+      <h1>LEFT 730 DEAD</h1>
+      <span id="statusBadge" class="badge-status">
+        <span class="status-dot"></span> Connecting...
+      </span>
+    </div>
+
+    <div class="hud-center">
+      <div class="hud-stat-box" style="min-width: 115px;">
+        <span class="hud-label">Time of Night</span>
+        <span id="hudClock" class="hud-value" style="color: #fbbf24;">🌇 7:30 PM</span>
+      </div>
+
+      <div class="hud-stat-box">
+        <span class="hud-label">Wave</span>
+        <span id="hudWave" class="hud-value">Wave 1</span>
+      </div>
+
+      <div class="hud-stat-box">
+        <span class="hud-label">Zombies</span>
+        <span id="hudZombies" class="hud-value">0</span>
+      </div>
+
+      <div class="hud-stat-box" style="min-width: 85px;">
+        <span class="hud-label">Win Streak</span>
+        <span id="hudStreak" class="hud-value" style="color: #4ade80;">🏆 0</span>
+      </div>
+
+      <div class="hud-xp-container">
+        <div class="xp-text-row">
+          <span id="hudLevel" style="font-weight: 800; color: #a855f7;">LVL 1</span>
+          <span id="xpText">0 / 100 XP</span>
+        </div>
+        <div class="xp-bar-bg">
+          <div id="xpFill" class="xp-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button id="btnToggleStreamMode" class="btn btn-primary">OBS Stream Mode</button>
+      <button id="btnResetGame" class="btn btn-danger">Reset Map</button>
+    </div>
+  </header>
+
+  <!-- Main App Body -->
+  <main class="app-container">
+    <!-- Left Stage: Game Canvas -->
+    <div class="canvas-wrapper">
+      <canvas id="gameCanvas" width="800" height="800"></canvas>
+      <div id="perksContainer" class="perks-bar">
+        <!-- Active perk badges render here -->
+      </div>
+    </div>
+
+    <!-- Right Stage: Sidebars & Controls -->
+    <div class="sidebar">
+      
+      <!-- Panel 1: Live Survivor Roster -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">🛡️ Survivor Squad</span>
+        </div>
+        <div id="survivorList" class="survivor-list">
+          <!-- Survivor cards render here -->
+        </div>
+      </div>
+
+      <!-- Panel 2: Host Debug Controls -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">⚙️ Host Engine Controls</span>
+        </div>
+
+        <!-- Add Survivor -->
+        <div class="input-row">
+          <input type="text" id="survivorNameInput" class="input-field" placeholder="Survivor Name...">
+          <button id="btnAddSurvivor" class="btn btn-success">+ Add</button>
+        </div>
+
+        <!-- Wave / Spawning Buttons -->
+        <div class="btn-grid">
+          <button id="btnSpawnWave" class="btn btn-warning">🌊 Spawn Wave</button>
+          <button id="btnToggleAutoWave" class="btn">🔁 Auto: ON</button>
+          <button id="btnToggleEndless" class="btn">♾️ Endless: OFF</button>
+          <button id="btnSpawnBrute" class="btn">👹 +1 Brute</button>
+        </div>
+        <button id="btnKillZombies" class="btn btn-danger" style="width: 100%;">💀 Clear All Zombies</button>
+
+        <!-- Barricade Damage Testing -->
+        <span class="panel-title" style="margin-top: 4px; font-size: 0.75rem;">Damage Barricades (Test Repair AI)</span>
+        <div class="btn-grid-3">
+          <button id="btnDamageNorthWin" class="btn">North Win</button>
+          <button id="btnDamageSouthWin" class="btn">South Win</button>
+          <button id="btnDamageEastWin" class="btn">East Win</button>
+          <button id="btnDamageWestWin" class="btn">West Win</button>
+          <button id="btnDamageDoor" class="btn btn-warning">Main Door</button>
+          <button id="btnRepairAll" class="btn btn-success">Fix All</button>
+        </div>
+
+        <!-- Perk Selection Mode -->
+        <div class="input-row" style="align-items: center; justify-content: space-between;">
+          <span style="font-size: 0.75rem; color: var(--text-muted);">Perk Mode:</span>
+          <select id="perkModeSelect" class="select-field" style="max-width: 140px;">
+            <option value="AUTOPILOT">Autopilot (1.5s)</option>
+            <option value="DRIVEN">Driven (Host Pick)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Panel 3: Discord Chat Command Simulator -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">💬 Discord Command Simulator</span>
+        </div>
+        
+        <select id="commandTargetSelect" class="select-field" style="width: 100%;">
+          <!-- Populated dynamically with survivors -->
+        </select>
+
+        <div class="btn-grid">
+          <button class="btn quick-cmd-btn" data-cmd="!go living room">!go Living Room</button>
+          <button class="btn quick-cmd-btn" data-cmd="!go armory">!go Armory</button>
+          <button class="btn quick-cmd-btn" data-cmd="!fix north window">!fix North Win</button>
+          <button class="btn quick-cmd-btn" data-cmd="!hold kitchen">!hold Kitchen</button>
+          <button class="btn quick-cmd-btn" data-cmd="!grab">!grab Loot</button>
+          <button class="btn quick-cmd-btn" data-cmd="!help">!help Mate</button>
+        </div>
+
+        <div class="input-row">
+          <input type="text" id="chatCommandInput" class="input-field" placeholder="e.g. !go workshop or !fix door">
+          <button id="btnSendCommand" class="btn btn-primary">Send</button>
+        </div>
+      </div>
+
+      <!-- Panel 4: Live Event Log -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">📜 Combat & Action Log</span>
+        </div>
+        <div id="eventLog" class="event-log-container">
+          <!-- Log entries append here -->
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Driven Perk Selection Modal -->
+  <div id="perkModal" class="modal-overlay">
+    <div class="perk-modal-card">
+      <h2 style="color: #c084fc; font-size: 1.4rem;">⭐ LEVEL UP! SELECT A PERK</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Choose a collective house enhancement for this run:</p>
+      <div id="perkOptions" class="perk-options-grid">
+        <!-- Perk choice buttons render here -->
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/client.js"></script>
+</body>
+</html>
