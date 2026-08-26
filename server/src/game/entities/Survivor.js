@@ -102,6 +102,7 @@ export class Survivor {
 
     this.state = SURVIVOR_STATES.IDLE;
     this.stateDetail = 'Guarding';
+    this.aimAngle = 0.0;
     this.targetBarricadeId = null;
     this.targetZombieId = null;
     this.targetLootId = null;
@@ -494,6 +495,7 @@ export class Survivor {
   performAttack(zombie, dt, engine) {
     if (this.attackCooldownTimer <= 0) {
       this.attackCooldownTimer = this.attackCooldown;
+      this.aimAngle = Math.atan2(zombie.y - this.y, zombie.x - this.x);
       const damage = Math.round(this.baseDamage * engine.progression.modifiers.damageMultiplier);
       const killed = engine.applyDamageToZombie(zombie, damage, this);
       
@@ -521,6 +523,7 @@ export class Survivor {
 
   performRepair(barricade, dt, engine) {
     barricade.addRepairer(this.id);
+    this.aimAngle = Math.atan2((barricade.y + 0.5) - this.y, (barricade.x + 0.5) - this.x);
     const baseRepairPerSec = 22;
     const roleMultiplier = this.role === 'CARPENTER' ? 1.4 : 1.0;
     const repairAmount = baseRepairPerSec * roleMultiplier * engine.progression.modifiers.repairSpeedMultiplier * dt;
@@ -601,6 +604,7 @@ export class Survivor {
     if (currentSpeed > 0) {
       vx = (vx / currentSpeed) * speed;
       vy = (vy / currentSpeed) * speed;
+      this.aimAngle = Math.atan2(vy, vx);
     }
 
     const nextX = this.x + vx * dt;
@@ -627,6 +631,7 @@ export class Survivor {
       guardStation: this.guardStation?.name || 'Central Hall',
       x: Math.round(this.x * 100) / 100,
       y: Math.round(this.y * 100) / 100,
+      aimAngle: Math.round(this.aimAngle * 100) / 100,
       hp: Math.round(this.hp * 10) / 10,
       maxHp: this.maxHp,
       state: this.state,

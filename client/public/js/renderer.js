@@ -1,7 +1,8 @@
 /**
  * HTML5 2D Canvas Game Renderer for Left 730 Dead
- * High-performance, pixel-crisp stream overlay viewport with Dusk-to-Dawn lighting,
- * procedural particle effects, blood splatters, screen shake, bullet tracers, and visual juice.
+ * Phase 4: Full Visual Art Overhaul & 730 Society Character Design
+ * High-performance, pixel-crisp architectural safehouse, prop furniture,
+ * directional 730 Society survivor models, and animated undead zombie horde.
  */
 
 export class GameRenderer {
@@ -18,6 +19,7 @@ export class GameRenderer {
     this.muzzleFlashes = [];
     this.particles = []; // Blood & Wood splinters
     this.bloodDecals = []; // Persistent floor stains (capped)
+    this.corpseDecals = []; // Fallen zombie bodies
     
     // Screen Shake
     this.shakeIntensity = 0;
@@ -51,7 +53,6 @@ export class GameRenderer {
         this.addSlashEffect(evt.x, evt.y, isCrit ? '#fbbf24' : '#f87171');
         this.addBloodSplatter(evt.x, evt.y, isCrit ? 10 : 5);
 
-        // Add tracer & muzzle flash if attacker position is known
         if (evt.sourceX !== undefined && evt.sourceY !== undefined) {
           this.addTracer(evt.sourceX, evt.sourceY, evt.x, evt.y, evt.attackerRole);
           this.addMuzzleFlash(evt.sourceX, evt.sourceY, evt.x, evt.y);
@@ -59,6 +60,7 @@ export class GameRenderer {
       } else if (evt.type === 'KILL') {
         this.addDamageFloaty(evt.x, evt.y, `+${evt.xp} XP`, '#c084fc', true);
         this.addBloodSplatter(evt.x, evt.y, 16);
+        this.addCorpse(evt.x, evt.y, evt.targetType);
         this.triggerScreenShake(evt.targetType === 'brute' ? 8 : 3);
       } else if (evt.type === 'HEAL') {
         this.addDamageFloaty(evt.x, evt.y, `+${evt.amount} HP`, '#22c55e', false);
@@ -106,14 +108,14 @@ export class GameRenderer {
 
   addTracer(sx, sy, tx, ty, role = 'SURVIVOR') {
     const ts = this.tileSize;
-    let color = '#fef08a'; // Yellow pistol
-    let width = 1.5;
+    let color = '#fef08a';
+    let width = 1.8;
     if (role === 'SLAYER') {
-      color = '#f97316'; // Orange shotgun
-      width = 2.5;
+      color = '#f97316';
+      width = 2.8;
     } else if (role === 'SENTINEL') {
-      color = '#38bdf8'; // Blue rifle
-      width = 2.0;
+      color = '#38bdf8';
+      width = 2.2;
     }
 
     this.tracers.push({
@@ -143,7 +145,6 @@ export class GameRenderer {
     const px = x * ts;
     const py = y * ts;
 
-    // Add flying particles
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 1.0 + Math.random() * 3.5;
@@ -159,7 +160,6 @@ export class GameRenderer {
       });
     }
 
-    // Add semi-permanent floor blood decal
     if (this.bloodDecals.length > 120) {
       this.bloodDecals.shift();
     }
@@ -169,6 +169,20 @@ export class GameRenderer {
       radius: 3 + Math.random() * 5,
       color: Math.random() < 0.4 ? 'rgba(153, 27, 27, 0.45)' : 'rgba(185, 28, 28, 0.4)',
       alpha: 1.0
+    });
+  }
+
+  addCorpse(x, y, type = 'shambler') {
+    const ts = this.tileSize;
+    if (this.corpseDecals.length > 40) {
+      this.corpseDecals.shift();
+    }
+    this.corpseDecals.push({
+      x: x * ts,
+      y: y * ts,
+      angle: Math.random() * Math.PI * 2,
+      isBrute: type === 'brute',
+      alpha: 0.85
     });
   }
 
@@ -203,7 +217,7 @@ export class GameRenderer {
 
     this.ctx.save();
 
-    // 0. Apply Screen Shake
+    // 0. Screen Shake
     if (this.shakeIntensity > 0.1) {
       const shakeX = (Math.random() - 0.5) * this.shakeIntensity;
       const shakeY = (Math.random() - 0.5) * this.shakeIntensity;
@@ -213,96 +227,166 @@ export class GameRenderer {
       this.shakeIntensity = 0;
     }
 
-    // 1. Draw Map & Rooms
-    this.renderMap(this.ctx, ts, snapshot);
+    // 1. Outside Yard, House Structure & Room Floors
+    this.renderHouseEnvironment(this.ctx, ts, snapshot);
 
-    // 2. Draw Blood Decals on Floor
-    this.renderBloodDecals(this.ctx);
+    // 2. Corpses & Blood Decals
+    this.renderCorpsesAndDecals(this.ctx);
 
-    // 3. Draw Barricades
+    // 3. Themed Room Furniture & Props
+    this.renderFurnitureProps(this.ctx, ts, now);
+
+    // 4. Barricades (Detailed Windows & Doors)
     this.renderBarricades(this.ctx, snapshot.barricades, ts);
 
-    // 4. Draw Loot Drops
+    // 5. Loot Drops
     this.renderLoot(this.ctx, snapshot.loot, ts, now);
 
-    // 5. Draw Zombies
-    this.renderZombies(this.ctx, snapshot.zombies, ts);
+    // 6. Undead Zombie Horde
+    this.renderZombies(this.ctx, snapshot.zombies, ts, now);
 
-    // 6. Draw Survivors
+    // 7. 730 Society Survivors
     this.renderSurvivors(this.ctx, snapshot.survivors, ts, now);
 
-    // 7. Draw Visual FX, Tracers, Particles & Floaties
+    // 8. Visual Combat Juice (Tracers, Muzzle Flashes, Particles & Floaties)
     this.renderEffects(this.ctx);
 
     this.ctx.restore();
 
-    // 8. Draw Overlays (Victory / Game Over / Intermission - not shaken)
+    // 9. Overlays (Victory / Game Over / Intermission)
     this.renderOverlays(this.ctx, snapshot);
   }
 
-  renderMap(ctx, ts, snapshot) {
-    // Outside Ground: Dynamic ambient lighting based on in-game time
-    let bgFill = '#0a0f1d'; // Midnight deep blue
+  // -------------------------------------------------------------
+  // 1. THE HOUSE & ENVIRONMENT
+  // -------------------------------------------------------------
+
+  renderHouseEnvironment(ctx, ts, snapshot) {
+    // Outside Ground Lighting (Night, Dusk, Dawn)
+    let grassBase = '#091512';
+    let gravelColor = '#1c1917';
     if (snapshot?.isDawn || snapshot?.waveState === 'VICTORY') {
-      bgFill = '#292524'; // Warm dawn twilight
+      grassBase = '#223828';
+      gravelColor = '#44403c';
     } else if (snapshot?.wave <= 3) {
-      bgFill = '#1e1b4b'; // Dusk purple
+      grassBase = '#111e24';
+      gravelColor = '#292524';
     }
 
-    ctx.fillStyle = bgFill;
+    ctx.fillStyle = grassBase;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Outside grid dots
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
-    for (let x = 0; x < this.map.width; x++) {
-      for (let y = 0; y < this.map.height; y++) {
-        if (this.map.grid[y][x] === 0) {
-          ctx.beginPath();
-          ctx.arc((x + 0.5) * ts, (y + 0.5) * ts, 1.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
+    // Gravel Path to Main Door (X: 12, Y: 15 to 20)
+    ctx.fillStyle = gravelColor;
+    ctx.fillRect(11.5 * ts, 15 * ts, 2 * ts, 5 * ts);
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(11.5 * ts, 15 * ts, 2 * ts, 5 * ts);
+
+    // Exterior Wall Lanterns (Warm lighting cones)
+    const lights = [
+      { x: 7.5, y: 3.6 },
+      { x: 12.5, y: 3.6 },
+      { x: 3.6, y: 9.5 },
+      { x: 15.4, y: 9.5 },
+      { x: 12.5, y: 15.4 }
+    ];
+    for (const l of lights) {
+      const grad = ctx.createRadialGradient(l.x * ts, l.y * ts, 4, l.x * ts, l.y * ts, ts * 2.2);
+      grad.addColorStop(0, 'rgba(251, 191, 36, 0.35)');
+      grad.addColorStop(0.5, 'rgba(245, 158, 11, 0.12)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(l.x * ts, l.y * ts, ts * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sconce fixture
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(l.x * ts - 2, l.y * ts - 2, 4, 4);
     }
 
-    // Safehouse Interior Floor (Solid Dark Wood)
-    ctx.fillStyle = '#1c2433';
+    // Inside House Base Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
     ctx.fillRect(4 * ts, 4 * ts, 12 * ts, 12 * ts);
 
-    // Wooden plank lines inside house
-    ctx.strokeStyle = '#273449';
+    // Sector 1: Living Room Floor (Parquet Hardwood Planks) [5..9, 5..9]
+    ctx.fillStyle = '#3e2312';
+    ctx.fillRect(5 * ts, 5 * ts, 5 * ts, 5 * ts);
+    ctx.strokeStyle = '#2b160b';
     ctx.lineWidth = 1;
-    for (let y = 4; y <= 15; y++) {
+    for (let y = 5; y < 10; y += 0.5) {
       ctx.beginPath();
-      ctx.moveTo(4 * ts, y * ts);
-      ctx.lineTo(16 * ts, y * ts);
+      ctx.moveTo(5 * ts, y * ts);
+      ctx.lineTo(10 * ts, y * ts);
       ctx.stroke();
     }
 
-    // Room Label Overlays
-    if (this.map.rooms) {
-      ctx.font = '700 11px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
-
-      for (const key of Object.keys(this.map.rooms)) {
-        const r = this.map.rooms[key];
-        ctx.fillText(r.name.toUpperCase(), (r.x + 0.5) * ts, (r.y + 0.5) * ts);
+    // Sector 2: Armory Floor (Diamond Plate Steel) [11..14, 5..9]
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(10.5 * ts, 5 * ts, 4.5 * ts, 5 * ts);
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    for (let x = 11; x <= 15; x++) {
+      ctx.beginPath();
+      ctx.moveTo(x * ts, 5 * ts);
+      ctx.lineTo(x * ts, 10 * ts);
+      ctx.stroke();
+    }
+    // Steel Plate Rivets
+    ctx.fillStyle = '#64748b';
+    for (let x = 11; x <= 14; x++) {
+      for (let y = 5; y <= 9; y++) {
+        ctx.fillRect((x + 0.1) * ts, (y + 0.1) * ts, 2, 2);
+        ctx.fillRect((x + 0.9) * ts, (y + 0.9) * ts, 2, 2);
       }
     }
 
-    // Draw Walls from Map Grid
+    // Sector 3: Kitchen Floor (Checkered Ceramic Tiles) [5..9, 11..14]
+    for (let x = 5; x < 10; x++) {
+      for (let y = 10.5; y < 15; y += 0.5) {
+        ctx.fillStyle = (x + Math.floor(y * 2)) % 2 === 0 ? '#1f2937' : '#374151';
+        ctx.fillRect(x * ts, y * ts, ts, 0.5 * ts);
+      }
+    }
+
+    // Sector 4: Workshop Floor (Industrial Stained Concrete) [11..14, 11..14]
+    ctx.fillStyle = '#262e3d';
+    ctx.fillRect(10.5 * ts, 10.5 * ts, 4.5 * ts, 4.5 * ts);
+    // Oil spots
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+    ctx.beginPath();
+    ctx.ellipse(12.5 * ts, 12.8 * ts, 18, 10, Math.PI / 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Central Hallway (Polished Mahogany + Runner Rug) [9..11, 9..11]
+    ctx.fillStyle = '#2e180d';
+    ctx.fillRect(9 * ts, 9 * ts, 2 * ts, 2 * ts);
+    // Burgundy Center Runner
+    ctx.fillStyle = '#831843';
+    ctx.fillRect(9.3 * ts, 9.1 * ts, 1.4 * ts, 1.8 * ts);
+    ctx.strokeStyle = '#ca8a04';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(9.3 * ts, 9.1 * ts, 1.4 * ts, 1.8 * ts);
+
+    // Walls (3D Beveled with drop shadows)
     for (let y = 0; y < this.map.height; y++) {
       for (let x = 0; x < this.map.width; x++) {
         const tile = this.map.grid[y][x];
         if (tile === 2) { // WALL
+          // Wall Base & Shadow
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+          ctx.fillRect(x * ts + 2, y * ts + 2, ts, ts);
+
+          // Wall Body
           ctx.fillStyle = '#334155';
           ctx.fillRect(x * ts, y * ts, ts, ts);
 
-          // Top highlight bevel
+          // Top Bevel Highlight
           ctx.fillStyle = '#475569';
-          ctx.fillRect(x * ts, y * ts, ts, 4);
+          ctx.fillRect(x * ts, y * ts, ts, 5);
 
-          // Dark wall border
+          // Outer Wall Trim
           ctx.strokeStyle = '#1e293b';
           ctx.lineWidth = 1.5;
           ctx.strokeRect(x * ts, y * ts, ts, ts);
@@ -311,15 +395,179 @@ export class GameRenderer {
     }
   }
 
-  renderBloodDecals(ctx) {
-    for (let i = this.bloodDecals.length - 1; i >= 0; i--) {
-      const d = this.bloodDecals[i];
+  renderCorpsesAndDecals(ctx) {
+    // Blood stains
+    for (const d of this.bloodDecals) {
       ctx.beginPath();
       ctx.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
       ctx.fillStyle = d.color;
       ctx.fill();
     }
+
+    // Dead zombie corpses
+    for (const c of this.corpseDecals) {
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.angle);
+      ctx.globalAlpha = c.alpha;
+
+      const size = c.isBrute ? 22 : 15;
+      // Rotting clothes torso
+      ctx.fillStyle = c.isBrute ? '#7f1d1d' : '#1e3a5f';
+      ctx.fillRect(-size / 2, -size / 3, size, size * 0.7);
+
+      // Decayed skull
+      ctx.fillStyle = '#15803d';
+      ctx.beginPath();
+      ctx.arc(0, -size / 2, size * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Blood pool under corpse
+      ctx.fillStyle = 'rgba(153, 27, 27, 0.5)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, size * 0.9, size * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
   }
+
+  // -------------------------------------------------------------
+  // 2. THEMED FURNITURE & PROPS
+  // -------------------------------------------------------------
+
+  renderFurnitureProps(ctx, ts, now) {
+    // --- LIVING ROOM PROPS (Sector: 5..9, 5..9) ---
+    // Circular Persian Rug (Center)
+    ctx.beginPath();
+    ctx.arc(7.5 * ts, 7.5 * ts, 1.4 * ts, 0, Math.PI * 2);
+    ctx.fillStyle = '#991b1b';
+    ctx.fill();
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Sectional L-Sofa Couch (NW Corner)
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(5.4 * ts, 5.4 * ts, 2.2 * ts, 0.8 * ts); // Top cushion
+    ctx.fillRect(5.4 * ts, 5.4 * ts, 0.8 * ts, 2.0 * ts); // Left cushion
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(5.4 * ts, 5.4 * ts, 2.2 * ts, 0.8 * ts);
+    ctx.strokeRect(5.4 * ts, 5.4 * ts, 0.8 * ts, 2.0 * ts);
+
+    // Coffee Table
+    ctx.fillStyle = '#451a03';
+    ctx.fillRect(6.8 * ts, 6.8 * ts, 1.2 * ts, 0.7 * ts);
+    ctx.strokeStyle = '#78350f';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(6.8 * ts, 6.8 * ts, 1.2 * ts, 0.7 * ts);
+
+    // TV / Fireplace Console against north wall
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(8.2 * ts, 5.1 * ts, 1.4 * ts, 0.4 * ts);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(8.4 * ts, 5.15 * ts, 1.0 * ts, 0.15 * ts); // TV Glow
+
+    // --- ARMORY PROPS (Sector: 11..14, 5..9) ---
+    // Weapon Pegboard Wall Racks (North wall)
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(11.2 * ts, 5.1 * ts, 2.4 * ts, 0.4 * ts);
+    ctx.strokeStyle = '#475569';
+    ctx.strokeRect(11.2 * ts, 5.1 * ts, 2.4 * ts, 0.4 * ts);
+    // Miniature rifles mounted
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(11.4 * ts, 5.25 * ts);
+    ctx.lineTo(12.2 * ts, 5.25 * ts);
+    ctx.moveTo(12.5 * ts, 5.25 * ts);
+    ctx.lineTo(13.4 * ts, 5.25 * ts);
+    ctx.stroke();
+
+    // Military Green Ammo Crates
+    ctx.fillStyle = '#15803d';
+    ctx.fillRect(13.2 * ts, 6.8 * ts, 1.1 * ts, 0.8 * ts);
+    ctx.strokeStyle = '#14532d';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(13.2 * ts, 6.8 * ts, 1.1 * ts, 0.8 * ts);
+    // Yellow Stencil [730]
+    ctx.font = '700 8px monospace';
+    ctx.fillStyle = '#fde047';
+    ctx.fillText('730 AMMO', 13.75 * ts, 7.3 * ts);
+
+    // Steel Wall Lockers (East wall)
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(14.4 * ts, 6.0 * ts, 0.4 * ts, 2.2 * ts);
+    ctx.strokeStyle = '#1e293b';
+    ctx.strokeRect(14.4 * ts, 6.0 * ts, 0.4 * ts, 2.2 * ts);
+
+    // --- KITCHEN PROPS (Sector: 5..9, 11..14) ---
+    // L-shaped Granite Countertop (SW corner)
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(5.2 * ts, 12.6 * ts, 0.7 * ts, 2.2 * ts);
+    ctx.fillRect(5.2 * ts, 14.1 * ts, 2.4 * ts, 0.7 * ts);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(5.2 * ts, 12.6 * ts, 0.7 * ts, 2.2 * ts);
+    ctx.strokeRect(5.2 * ts, 14.1 * ts, 2.4 * ts, 0.7 * ts);
+
+    // Sink (Chrome basin)
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(5.35 * ts, 13.0 * ts, 0.4 * ts, 0.6 * ts);
+
+    // Stovetop (4 burners)
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(6.4 * ts, 14.2 * ts, 0.9 * ts, 0.5 * ts);
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(6.6 * ts, 14.45 * ts, 2.5, 0, Math.PI * 2);
+    ctx.arc(7.1 * ts, 14.45 * ts, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Refrigerator
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(5.2 * ts, 11.2 * ts, 0.7 * ts, 1.0 * ts);
+    ctx.strokeStyle = '#475569';
+    ctx.strokeRect(5.2 * ts, 11.2 * ts, 0.7 * ts, 1.0 * ts);
+
+    // --- WORKSHOP PROPS (Sector: 11..14, 11..14) ---
+    // Heavy Timber Workbench with Iron Vice (Center East)
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(12.4 * ts, 11.4 * ts, 1.8 * ts, 0.9 * ts);
+    ctx.strokeStyle = '#451a03';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(12.4 * ts, 11.4 * ts, 1.8 * ts, 0.9 * ts);
+
+    // Blue Iron Vice clamp
+    ctx.fillStyle = '#2563eb';
+    ctx.fillRect(14.0 * ts, 11.3 * ts, 0.3 * ts, 0.3 * ts);
+
+    // Red Storage Drum
+    ctx.beginPath();
+    ctx.arc(14.2 * ts, 13.8 * ts, 10, 0, Math.PI * 2);
+    ctx.fillStyle = '#dc2626';
+    ctx.fill();
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Room Label Overlays
+    if (this.map.rooms) {
+      ctx.font = '800 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+
+      for (const key of Object.keys(this.map.rooms)) {
+        const r = this.map.rooms[key];
+        ctx.fillText(`[ ${r.name.toUpperCase()} ]`, (r.x + 0.5) * ts, (r.y + 0.5) * ts);
+      }
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 3. FORTIFIED BARRICADES
+  // -------------------------------------------------------------
 
   renderBarricades(ctx, barricades, ts) {
     if (!barricades) return;
@@ -330,75 +578,94 @@ export class GameRenderer {
       const hpRatio = b.hp / b.maxHp;
 
       if (b.isBreached) {
-        // Breached Barricade (Red flashing broken frame)
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
-        ctx.fillRect(bx + 4, by + 4, ts - 8, ts - 8);
+        // Breached Barricade (Shattered broken planks + Red hazard border)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.28)';
+        ctx.fillRect(bx + 2, by + 2, ts - 4, ts - 4);
 
         ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 2.5;
-        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
         ctx.strokeRect(bx + 2, by + 2, ts - 4, ts - 4);
         ctx.setLineDash([]);
 
-        // Breached text
-        ctx.font = '800 10px sans-serif';
+        // Broken splinter stubs
+        ctx.fillStyle = '#451a03';
+        ctx.fillRect(bx + 3, by + 4, 8, 4);
+        ctx.fillRect(bx + ts - 11, by + ts - 8, 8, 4);
+
+        // Flashing breach warning text
+        ctx.font = '900 9px sans-serif';
         ctx.fillStyle = '#f87171';
         ctx.textAlign = 'center';
-        ctx.fillText('BREACH', bx + ts / 2, by + ts / 2 + 4);
+        ctx.fillText('BREACH', bx + ts / 2, by + ts / 2 + 3);
       } else {
-        // Intact / Damaged Barricade
+        // Fortified Wooden Planks
         const isDoor = b.type === 'door';
-        ctx.fillStyle = isDoor ? '#854d0e' : '#1e3a8a';
-        ctx.fillRect(bx + 3, by + 3, ts - 6, ts - 6);
+        ctx.fillStyle = isDoor ? '#713f12' : '#854d0e';
+        ctx.fillRect(bx + 2, by + 2, ts - 4, ts - 4);
 
-        // Fortification Planks Pattern
-        ctx.strokeStyle = isDoor ? '#ca8a04' : '#3b82f6';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(bx + 3, by + 3, ts - 6, ts - 6);
-
-        // Internal cross planks
-        ctx.beginPath();
-        ctx.moveTo(bx + 6, by + 6);
-        ctx.lineTo(bx + ts - 6, by + ts - 6);
-        ctx.moveTo(bx + ts - 6, by + 6);
-        ctx.lineTo(bx + 6, by + ts - 6);
-        ctx.stroke();
-
-        // Visual damage cracks if low HP
-        if (hpRatio < 0.6) {
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
-          ctx.lineWidth = 1.5;
+        // Individual horizontal wood planks
+        ctx.strokeStyle = '#451a03';
+        ctx.lineWidth = 1;
+        for (let py = 6; py < ts - 4; py += 7) {
           ctx.beginPath();
-          ctx.moveTo(bx + ts * 0.3, by + ts * 0.2);
-          ctx.lineTo(bx + ts * 0.5, by + ts * 0.5);
-          ctx.lineTo(bx + ts * 0.4, by + ts * 0.8);
+          ctx.moveTo(bx + 3, by + py);
+          ctx.lineTo(bx + ts - 3, by + py);
           ctx.stroke();
         }
 
-        // Repairing Sparkle Badge
+        // Metal Corner Reinforcements & Iron Studs
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(bx + 2, by + 2, 6, 6);
+        ctx.fillRect(bx + ts - 8, by + 2, 6, 6);
+        ctx.fillRect(bx + 2, by + ts - 8, 6, 6);
+        ctx.fillRect(bx + ts - 8, by + ts - 8, 6, 6);
+
+        // Iron Nails
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(bx + 4, by + 4, 2, 2);
+        ctx.fillRect(bx + ts - 6, by + 4, 2, 2);
+        ctx.fillRect(bx + 4, by + ts - 6, 2, 2);
+        ctx.fillRect(bx + ts - 6, by + ts - 6, 2, 2);
+
+        // Visual damage cracks
+        if (hpRatio < 0.6) {
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(bx + ts * 0.3, by + ts * 0.2);
+          ctx.lineTo(bx + ts * 0.5, by + ts * 0.55);
+          ctx.lineTo(bx + ts * 0.4, by + ts * 0.85);
+          ctx.stroke();
+        }
+
+        // Repairing Tool Sparkle
         if (b.repairerCount > 0) {
           ctx.font = '12px sans-serif';
-          ctx.fillText('🔨', bx + ts / 2, by + ts / 2 + 5);
+          ctx.textAlign = 'center';
+          ctx.fillText('🔨', bx + ts / 2, by + ts / 2 + 4);
         }
       }
 
       // Barricade Health Bar
-      const barW = ts + 8;
-      const barH = 5;
-      const barX = bx - 4;
-      const barY = by - 7;
+      const barW = ts + 6;
+      const barH = 4;
+      const barX = bx - 3;
+      const barY = by - 6;
 
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(barX, barY, barW, barH);
-
       ctx.fillStyle = hpRatio > 0.6 ? '#22c55e' : hpRatio > 0.25 ? '#eab308' : '#ef4444';
       ctx.fillRect(barX, barY, barW * hpRatio, barH);
-
       ctx.strokeStyle = '#334155';
       ctx.lineWidth = 1;
       ctx.strokeRect(barX, barY, barW, barH);
     }
   }
+
+  // -------------------------------------------------------------
+  // 4. LOOT PICKUPS
+  // -------------------------------------------------------------
 
   renderLoot(ctx, loot, ts, now) {
     if (!loot) return;
@@ -409,56 +676,146 @@ export class GameRenderer {
 
       // Pulse Glow circle
       ctx.beginPath();
-      ctx.arc(lx, ly, 12 + Math.sin(now / 150) * 2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
+      ctx.arc(lx, ly, 13 + Math.sin(now / 150) * 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.35)';
       ctx.fill();
 
-      // Health pack box
+      // Health pack tactical box
       ctx.fillStyle = '#22c55e';
-      ctx.fillRect(lx - 8, ly - 8, 16, 16);
+      ctx.fillRect(lx - 9, ly - 9, 18, 18);
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(lx - 8, ly - 8, 16, 16);
+      ctx.strokeRect(lx - 9, ly - 9, 18, 18);
 
-      // White cross
+      // White cross symbol
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(lx - 5, ly - 2, 10, 4);
-      ctx.fillRect(lx - 2, ly - 5, 4, 10);
+      ctx.fillRect(lx - 6, ly - 2, 12, 4);
+      ctx.fillRect(lx - 2, ly - 6, 4, 12);
     }
   }
 
-  renderZombies(ctx, zombies, ts) {
+  // -------------------------------------------------------------
+  // 5. UNDEAD ZOMBIE HORDE (Top-Down Sprites & Animations)
+  // -------------------------------------------------------------
+
+  renderZombies(ctx, zombies, ts, now) {
     if (!zombies) return;
 
     for (const z of zombies) {
       const zx = z.x * ts;
       const zy = z.y * ts;
-      const size = (z.size || 0.8) * ts;
-      const offset = -size / 2;
+      const isBrute = z.type === 'brute';
+      const angle = z.facingAngle || 0;
 
-      // Zombie Body
-      ctx.fillStyle = z.color || '#ef4444';
-      ctx.shadowColor = 'rgba(239, 68, 68, 0.5)';
-      ctx.shadowBlur = 8;
-      ctx.fillRect(zx + offset, zy + offset, size, size);
-      ctx.shadowBlur = 0;
+      ctx.save();
+      ctx.translate(zx, zy);
+      ctx.rotate(angle);
 
-      // Outline
-      ctx.strokeStyle = '#7f1d1d';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(zx + offset, zy + offset, size, size);
+      // Walking & attack sway
+      const sway = Math.sin((now / (isBrute ? 220 : 160)) + z.id.length) * (isBrute ? 2.5 : 3.5);
 
-      // Glowing Eyes
-      ctx.fillStyle = '#fef08a';
-      ctx.fillRect(zx + offset + 4, zy + offset + 5, 3, 3);
-      ctx.fillRect(zx + offset + size - 7, zy + offset + 5, 3, 3);
+      if (isBrute) {
+        // --- GIANT BRUTE / TANK ---
+        const bW = 28;
+        const bH = 20;
 
-      // Health Bar
+        // Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, bW * 0.7, bH * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Muscular Shoulders & Torn Vest
+        ctx.fillStyle = '#7f1d1d';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, bW / 2, bH / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#450a0a';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Muscular Scarred Back
+        ctx.fillStyle = '#15803d';
+        ctx.fillRect(-6, -4, 12, 8);
+
+        // Huge Bloody Knuckle Arms (Lunging forward)
+        ctx.fillStyle = '#166534';
+        ctx.fillRect(4, -12 + sway, 14, 7); // Right arm
+        ctx.fillRect(4, 5 - sway, 14, 7);  // Left arm
+        ctx.fillStyle = '#991b1b'; // Bloody fists
+        ctx.fillRect(14, -12 + sway, 6, 7);
+        ctx.fillRect(14, 5 - sway, 6, 7);
+
+        // Decayed Head with Glowing Red Eyes
+        ctx.fillStyle = '#15803d';
+        ctx.beginPath();
+        ctx.arc(2, 0, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Glowing Crimson Pupils
+        ctx.fillStyle = '#ef4444';
+        ctx.shadowColor = '#ef4444';
+        ctx.shadowBlur = 8;
+        ctx.fillRect(6, -3, 3, 2);
+        ctx.fillRect(6, 1, 3, 2);
+        ctx.shadowBlur = 0;
+
+      } else {
+        // --- SHAMBLER ZOMBIE ---
+        const sW = 18;
+        const sH = 12;
+
+        // Shadow
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, sW * 0.6, sH * 0.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Torn Blue/Grey Ripped Shirt
+        ctx.fillStyle = '#1e3a5f';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, sW / 2, sH / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Blood stains on back
+        ctx.fillStyle = '#991b1b';
+        ctx.fillRect(-3, -2, 6, 4);
+
+        // Outstretched Claw Arms (Reaching to bite/scratch)
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(2, -8 + sway, 11, 4); // Right arm
+        ctx.fillRect(2, 4 - sway, 11, 4);  // Left arm
+        // Claw claws
+        ctx.fillStyle = '#7f1d1d';
+        ctx.fillRect(10, -8 + sway, 4, 4);
+        ctx.fillRect(10, 4 - sway, 4, 4);
+
+        // Decayed Green Skull
+        ctx.fillStyle = '#22c55e';
+        ctx.beginPath();
+        ctx.arc(1, 0, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Sunken Eye Sockets & Glowing Yellow Pupils
+        ctx.fillStyle = '#052e16';
+        ctx.fillRect(4, -2.5, 2, 2);
+        ctx.fillRect(4, 0.5, 2, 2);
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(4.5, -2, 1.5, 1.5);
+        ctx.fillRect(4.5, 1, 1.5, 1.5);
+      }
+
+      ctx.restore();
+
+      // Zombie Floating Health Bar
       const hpRatio = z.hp / z.maxHp;
-      const barW = size;
-      const barH = 4;
-      const barX = zx + offset;
-      const barY = zy + offset - 6;
+      const barW = (isBrute ? 28 : 20);
+      const barH = 3.5;
+      const barX = zx - barW / 2;
+      const barY = zy - (isBrute ? 20 : 15);
 
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(barX, barY, barW, barH);
@@ -467,29 +824,35 @@ export class GameRenderer {
     }
   }
 
+  // -------------------------------------------------------------
+  // 6. 730 SOCIETY SURVIVOR CHARACTERS (Top-Down Models & Roles)
+  // -------------------------------------------------------------
+
   renderSurvivors(ctx, survivors, ts, now) {
     if (!survivors) return;
 
     for (const s of survivors) {
       const sx = s.x * ts;
       const sy = s.y * ts;
-      const size = 0.85 * ts;
-      const offset = -size / 2;
+      const angle = s.aimAngle || 0;
+      const isHost = s.name.toLowerCase().includes('rudy');
+      const role = s.role || 'SURVIVOR';
 
       if (!s.isAlive) {
-        // Downed survivor
+        // Downed Corpse View
+        ctx.save();
+        ctx.translate(sx, sy);
         ctx.fillStyle = '#475569';
-        ctx.fillRect(sx + offset, sy + offset, size, size);
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(sx + offset, sy + offset, size, size);
+        ctx.beginPath();
+        ctx.arc(0, 0, 10, 0, Math.PI * 2);
+        ctx.fill();
         ctx.font = '12px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('💀', sx, sy + 4);
-
+        ctx.fillText('💀', 0, 4);
         ctx.font = 'bold 9px sans-serif';
         ctx.fillStyle = '#f87171';
-        ctx.fillText('DOWNED', sx, sy - 6);
+        ctx.fillText('DOWNED', 0, -12);
+        ctx.restore();
         continue;
       }
 
@@ -497,50 +860,152 @@ export class GameRenderer {
       const hpRatio = s.hp / s.maxHp;
       if (hpRatio <= 0.3) {
         ctx.beginPath();
-        ctx.arc(sx, sy, size * 0.85 + Math.sin(now / 100) * 3, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+        ctx.arc(sx, sy, 18 + Math.sin(now / 100) * 3, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.75)';
         ctx.lineWidth = 2.5;
         ctx.stroke();
       }
 
-      // Survivor Body (Colored Square with rounded edges)
-      ctx.fillStyle = s.color || '#22c55e';
-      ctx.shadowColor = s.color || '#22c55e';
-      ctx.shadowBlur = 10;
-      ctx.fillRect(sx + offset, sy + offset, size, size);
-      ctx.shadowBlur = 0;
+      // --- TOP-DOWN HUMAN SURVIVOR BODY ---
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(angle);
 
-      // Inner Highlight
-      ctx.strokeStyle = '#ffffff';
+      // Walking stride & weapon bob
+      const isMoving = s.state === 'MOVING';
+      const bob = Math.sin(now / 140) * (isMoving ? 1.5 : 0.4);
+
+      // Drop Shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 14, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Torso & Tactical Uniform
+      let uniformColor = s.color || '#3b82f6';
+      if (isHost) uniformColor = '#1e293b'; // Rudy dark tactical jacket
+      else if (role === 'CARPENTER') uniformColor = '#ea580c'; // High-vis orange vest
+      else if (role === 'SENTINEL') uniformColor = '#15803d'; // Olive camo
+      else if (role === 'SLAYER') uniformColor = '#0f172a'; // Heavy black armor
+      else if (role === 'SCAVENGER') uniformColor = '#475569'; // Urban hoodie
+
+      ctx.fillStyle = uniformColor;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 11, 7.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(sx + offset + 2, sy + offset + 2, size - 4, size - 4);
+      ctx.stroke();
 
-      // State Icon inside Survivor
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      let icon = '🛡️';
-      if (s.state === 'REPAIRING') icon = '🔨';
-      else if (s.state === 'ATTACKING') icon = '⚔️';
-      else if (s.state === 'MANUAL') icon = '🎮';
-      else if (s.state === 'LOOTING') icon = '📦';
-      else if (s.state === 'GUARDING') icon = s.role === 'SLAYER' ? '⚔️' : s.role === 'CARPENTER' ? '🔨' : '🛡️';
+      // Role Gear Details (Vest, Bandolier, Backpack)
+      if (role === 'SLAYER') {
+        // Red diagonal ammo bandolier
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(-6, -5);
+        ctx.lineTo(6, 5);
+        ctx.stroke();
+      } else if (role === 'SCAVENGER') {
+        // Backpack on rear
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(-10, -5, 4, 10);
+      } else if (role === 'CARPENTER') {
+        // Toolbelt hammer
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(-2, -9, 4, 3);
+      }
 
-      ctx.fillText(icon, sx, sy + 4);
+      // Arms reaching forward gripping firearm
+      ctx.fillStyle = '#fde68a'; // Skin hands
+      ctx.fillRect(4, -6 + bob, 8, 3.5); // Right arm
+      ctx.fillRect(4, 2.5 - bob, 8, 3.5); // Left arm
 
-      // Survivor Name Overhead
+      // Weapon Firearm Models
+      if (role === 'SLAYER' || isHost) {
+        // Combat Shotgun (Dark metal double barrel & wooden pump)
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(6, -2, 14, 4);
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(14, -1.5, 6, 3); // Muzzle
+      } else if (role === 'SENTINEL') {
+        // Marksman Scoped Rifle (Long barrel)
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(6, -1.5, 17, 3);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(9, -3.5, 5, 2); // Optical Scope
+      } else {
+        // Standard Pistol / Carbine
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(6, -1.5, 10, 3);
+      }
+
+      // Human Head
+      ctx.fillStyle = '#fde68a'; // Face/skin
+      ctx.beginPath();
+      ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Headwear & 730 Society Badges
+      if (isHost) {
+        // Rudy's "730" Tactical Cap
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(0, 0, 6.5, Math.PI * 0.6, Math.PI * 2.4);
+        ctx.fill();
+        // Cap visor forward
+        ctx.fillRect(2, -4, 4, 8);
+        // Gold "730" pin
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(-2, -2, 4, 4);
+      } else if (role === 'CARPENTER') {
+        // Welding Goggles on forehead
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(-2, -5, 3, 10);
+      } else if (role === 'SENTINEL') {
+        // Tactical Headset
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(-1, -7.5, 3, 15);
+      } else if (role === 'SLAYER') {
+        // Red Bandana
+        ctx.fillStyle = '#dc2626';
+        ctx.beginPath();
+        ctx.arc(0, 0, 6.5, Math.PI * 0.7, Math.PI * 2.3);
+        ctx.fill();
+      } else if (role === 'SCAVENGER') {
+        // Urban Hoodie
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.arc(0, 0, 7.5, Math.PI * 0.5, Math.PI * 2.5);
+        ctx.fill();
+      }
+
+      ctx.restore();
+
+      // --- OVERHEAD HUD (Name, Role Icon & Health Bar) ---
+      const barW = ts * 1.1;
+      const barH = 5;
+      const barX = sx - barW / 2;
+      const barY = sy - 18;
+
+      // Name & Role overhead
       ctx.font = 'bold 10px sans-serif';
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 2.5;
-      ctx.strokeText(s.name, sx, sy - 11);
-      ctx.fillText(s.name, sx, sy - 11);
+      ctx.textAlign = 'center';
 
-      // Survivor Health Bar
-      const barW = ts;
-      const barH = 5;
-      const barX = sx - barW / 2;
-      const barY = sy - 8;
+      let roleIcon = '🛡️';
+      if (role === 'CARPENTER') roleIcon = '🔨';
+      else if (role === 'SENTINEL') roleIcon = '🎯';
+      else if (role === 'SLAYER') roleIcon = '💥';
+      else if (role === 'SCAVENGER') roleIcon = '📦';
 
+      const label = `${roleIcon} ${s.name}`;
+      ctx.strokeText(label, sx, barY - 3);
+      ctx.fillText(label, sx, barY - 3);
+
+      // Health Bar
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(barX, barY, barW, barH);
       ctx.fillStyle = hpRatio > 0.5 ? '#22c55e' : hpRatio > 0.25 ? '#eab308' : '#ef4444';
@@ -550,6 +1015,10 @@ export class GameRenderer {
       ctx.strokeRect(barX, barY, barW, barH);
     }
   }
+
+  // -------------------------------------------------------------
+  // 7. VISUAL COMBAT EFFECTS
+  // -------------------------------------------------------------
 
   renderEffects(ctx) {
     // 1. Bullet Tracers
@@ -578,10 +1047,10 @@ export class GameRenderer {
       ctx.globalAlpha = Math.max(0, mf.life);
 
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(16, -6);
-      ctx.lineTo(22, 0);
-      ctx.lineTo(16, 6);
+      ctx.moveTo(8, 0);
+      ctx.lineTo(20, -7);
+      ctx.lineTo(26, 0);
+      ctx.lineTo(20, 7);
       ctx.closePath();
       ctx.fill();
 
@@ -626,7 +1095,7 @@ export class GameRenderer {
       if (s.life <= 0) this.slashEffects.splice(i, 1);
     }
 
-    // 5. Floating Text (Damage, XP, Heals)
+    // 5. Floating Combat Text
     for (let i = this.floaties.length - 1; i >= 0; i--) {
       const f = this.floaties[i];
       ctx.font = f.isCrit ? '900 13px monospace' : 'bold 11px monospace';
@@ -645,13 +1114,16 @@ export class GameRenderer {
     }
   }
 
+  // -------------------------------------------------------------
+  // 8. OVERLAYS & VICTORY / GAME OVER
+  // -------------------------------------------------------------
+
   renderOverlays(ctx, snapshot) {
     if (snapshot.waveState === 'VICTORY') {
-      // Warm Sunrise Golden Victory Screen
       const grad = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-      grad.addColorStop(0, 'rgba(245, 158, 11, 0.88)'); // Amber gold
-      grad.addColorStop(0.5, 'rgba(234, 88, 12, 0.90)'); // Orange
-      grad.addColorStop(1, 'rgba(15, 23, 42, 0.96)'); // Dark base
+      grad.addColorStop(0, 'rgba(245, 158, 11, 0.88)');
+      grad.addColorStop(0.5, 'rgba(234, 88, 12, 0.90)');
+      grad.addColorStop(1, 'rgba(15, 23, 42, 0.96)');
 
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -668,19 +1140,16 @@ export class GameRenderer {
       ctx.fillStyle = '#ffffff';
       ctx.fillText('🏆 SQUAD SURVIVED THE NIGHT 🏆', this.canvas.width / 2, this.canvas.height / 2 - 20);
 
-      // Streak Badge
       ctx.font = '800 16px sans-serif';
       ctx.fillStyle = '#4ade80';
       ctx.fillText(`🔥 Consecutive Night Victories: ${snapshot.winStreak || 1} 🔥`, this.canvas.width / 2, this.canvas.height / 2 + 15);
 
-      // Level / Stats summary
       const lvl = snapshot.progression?.level || 1;
       const perks = snapshot.progression?.activePerks?.length || 0;
       ctx.font = '600 14px monospace';
       ctx.fillStyle = '#e2e8f0';
       ctx.fillText(`Safehouse Fortified to LVL ${lvl} (${perks} Perks Active)`, this.canvas.width / 2, this.canvas.height / 2 + 45);
 
-      // Autopilot Countdown
       ctx.font = '600 13px sans-serif';
       ctx.fillStyle = '#fde68a';
       ctx.fillText(`🌅 Next Night begins in ${snapshot.victoryTimer || 60}s...`, this.canvas.width / 2, this.canvas.height / 2 + 80);
