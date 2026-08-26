@@ -311,14 +311,38 @@ export class GameEngine {
       // Roll for Loot Drop (Health Pack base 30% * dropRateMultiplier)
       const dropChance = 0.30 * this.progression.modifiers.dropRateMultiplier;
       if (Math.random() < dropChance) {
-        this.lootDrops.push({
-          id: `loot_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-          type: 'health',
-          amount: 35,
-          x: zombie.x,
-          y: zombie.y,
-          createdTick: this.tickCount
-        });
+        let dropX = zombie.x;
+        let dropY = zombie.y;
+
+        // RULE: Health item pickups MUST NEVER be created outside the house
+        if (!this.map.isInsideHouse(dropX, dropY)) {
+          if (attacker && this.map.isInsideHouse(attacker.x, attacker.y)) {
+            // Secure kill reward: spawn on safe indoor floor near the defending survivor
+            dropX = attacker.x + (Math.random() * 0.6 - 0.3);
+            dropY = attacker.y + (Math.random() * 0.6 - 0.3);
+          } else {
+            // Clamp to nearest indoor safehouse floor
+            dropX = Math.max(5.5, Math.min(14.5, dropX));
+            dropY = Math.max(5.5, Math.min(14.5, dropY));
+          }
+        }
+
+        // Final verification that loot is strictly inside house and on walkable floor
+        if (this.map.isInsideHouse(dropX, dropY) && this.map.isPositionWalkable(dropX, dropY, 0.25)) {
+          // Cap total active indoor loot to avoid clutter
+          if (this.lootDrops.length >= 12) {
+            this.lootDrops.shift();
+          }
+
+          this.lootDrops.push({
+            id: `loot_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            type: 'health',
+            amount: 35,
+            x: Math.round(dropX * 100) / 100,
+            y: Math.round(dropY * 100) / 100,
+            createdTick: this.tickCount
+          });
+        }
       }
 
       return true;
