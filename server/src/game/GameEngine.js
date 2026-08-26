@@ -268,6 +268,12 @@ export class GameEngine {
       damage: dealt,
       x: zombie.x,
       y: zombie.y,
+      sourceX: attacker ? attacker.x : undefined,
+      sourceY: attacker ? attacker.y : undefined,
+      attackerId: attacker?.id,
+      attackerName: attacker?.name,
+      attackerRole: attacker?.role,
+      targetType: zombie.type,
       color: '#ef4444'
     });
 
@@ -279,6 +285,9 @@ export class GameEngine {
         type: 'KILL',
         targetId: zombie.id,
         attackerId: attacker?.id,
+        attackerName: attacker?.name || 'Squad',
+        attackerRole: attacker?.role || 'SURVIVOR',
+        targetType: zombie.type,
         xp: gainedXp,
         x: zombie.x,
         y: zombie.y

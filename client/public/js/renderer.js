@@ -1,6 +1,7 @@
 /**
  * HTML5 2D Canvas Game Renderer for Left 730 Dead
- * High-performance, pixel-crisp stream overlay viewport with Dusk-to-Dawn lighting.
+ * High-performance, pixel-crisp stream overlay viewport with Dusk-to-Dawn lighting,
+ * procedural particle effects, blood splatters, screen shake, bullet tracers, and visual juice.
  */
 
 export class GameRenderer {
@@ -9,9 +10,19 @@ export class GameRenderer {
     this.ctx = canvas.getContext('2d');
     this.map = null;
     this.tileSize = 40; // 20x20 tiles = 800x800px base
+    
+    // Effects & Particles
     this.slashEffects = [];
     this.floaties = [];
+    this.tracers = [];
+    this.muzzleFlashes = [];
+    this.particles = []; // Blood & Wood splinters
+    this.bloodDecals = []; // Persistent floor stains (capped)
     
+    // Screen Shake
+    this.shakeIntensity = 0;
+    this.shakeDecay = 0.90;
+
     this.setupCanvasSize();
     window.addEventListener('resize', () => this.setupCanvasSize());
   }
@@ -26,31 +37,59 @@ export class GameRenderer {
     this.map = mapData;
   }
 
+  triggerScreenShake(amount = 6) {
+    this.shakeIntensity = Math.min(24, Math.max(this.shakeIntensity, amount));
+  }
+
   processCombatEvents(events) {
     if (!events || !events.length) return;
 
     for (const evt of events) {
       if (evt.type === 'DAMAGE') {
-        this.addDamageFloaty(evt.x, evt.y, evt.damage, evt.color || '#ef4444');
-        this.addSlashEffect(evt.x, evt.y, '#f87171');
+        const isCrit = evt.damage >= 25;
+        this.addDamageFloaty(evt.x, evt.y, evt.damage, isCrit ? '#fbbf24' : '#ef4444', isCrit);
+        this.addSlashEffect(evt.x, evt.y, isCrit ? '#fbbf24' : '#f87171');
+        this.addBloodSplatter(evt.x, evt.y, isCrit ? 10 : 5);
+
+        // Add tracer & muzzle flash if attacker position is known
+        if (evt.sourceX !== undefined && evt.sourceY !== undefined) {
+          this.addTracer(evt.sourceX, evt.sourceY, evt.x, evt.y, evt.attackerRole);
+          this.addMuzzleFlash(evt.sourceX, evt.sourceY, evt.x, evt.y);
+        }
       } else if (evt.type === 'KILL') {
-        this.addDamageFloaty(evt.x, evt.y, `+${evt.xp} XP`, '#c084fc');
+        this.addDamageFloaty(evt.x, evt.y, `+${evt.xp} XP`, '#c084fc', true);
+        this.addBloodSplatter(evt.x, evt.y, 16);
+        this.triggerScreenShake(evt.targetType === 'brute' ? 8 : 3);
       } else if (evt.type === 'HEAL') {
-        this.addDamageFloaty(evt.x, evt.y, `+${evt.amount} HP`, '#22c55e');
+        this.addDamageFloaty(evt.x, evt.y, `+${evt.amount} HP`, '#22c55e', false);
       } else if (evt.type === 'REPAIR') {
         this.addSlashEffect(evt.x, evt.y, '#60a5fa');
+        this.addWoodSplinters(evt.x, evt.y, 3, '#93c5fd');
+      } else if (evt.type === 'BARRICADE_HIT') {
+        this.addDamageFloaty(evt.x, evt.y, `-${evt.damage}`, '#f97316');
+        this.addWoodSplinters(evt.x, evt.y, evt.breached ? 20 : 6);
+        if (evt.breached) {
+          this.triggerScreenShake(14);
+        } else {
+          this.triggerScreenShake(2.5);
+        }
+      } else if (evt.type === 'SURVIVOR_HIT') {
+        this.addDamageFloaty(evt.x, evt.y, `-${evt.damage}`, '#ef4444', true);
+        this.triggerScreenShake(6);
+        this.addBloodSplatter(evt.x, evt.y, 8);
       }
     }
   }
 
-  addDamageFloaty(x, y, text, color = '#ffffff') {
+  addDamageFloaty(x, y, text, color = '#ffffff', isCrit = false) {
     const ts = this.tileSize;
     this.floaties.push({
-      x: x * ts + (Math.random() * 12 - 6),
+      x: x * ts + (Math.random() * 14 - 7),
       y: y * ts - 8,
       text: String(text),
       color: color,
-      vy: -0.85,
+      isCrit: isCrit,
+      vy: isCrit ? -1.2 : -0.85,
       life: 1.0
     });
   }
@@ -65,6 +104,96 @@ export class GameRenderer {
     });
   }
 
+  addTracer(sx, sy, tx, ty, role = 'SURVIVOR') {
+    const ts = this.tileSize;
+    let color = '#fef08a'; // Yellow pistol
+    let width = 1.5;
+    if (role === 'SLAYER') {
+      color = '#f97316'; // Orange shotgun
+      width = 2.5;
+    } else if (role === 'SENTINEL') {
+      color = '#38bdf8'; // Blue rifle
+      width = 2.0;
+    }
+
+    this.tracers.push({
+      x1: sx * ts,
+      y1: sy * ts,
+      x2: tx * ts,
+      y2: ty * ts,
+      color: color,
+      width: width,
+      life: 1.0
+    });
+  }
+
+  addMuzzleFlash(sx, sy, tx, ty) {
+    const ts = this.tileSize;
+    const angle = Math.atan2(ty - sy, tx - sx);
+    this.muzzleFlashes.push({
+      x: sx * ts,
+      y: sy * ts,
+      angle: angle,
+      life: 1.0
+    });
+  }
+
+  addBloodSplatter(x, y, count = 8) {
+    const ts = this.tileSize;
+    const px = x * ts;
+    const py = y * ts;
+
+    // Add flying particles
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1.0 + Math.random() * 3.5;
+      this.particles.push({
+        x: px,
+        y: py,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 1.5 + Math.random() * 2.5,
+        color: Math.random() < 0.3 ? '#991b1b' : '#dc2626',
+        life: 1.0,
+        decay: 0.04 + Math.random() * 0.04
+      });
+    }
+
+    // Add semi-permanent floor blood decal
+    if (this.bloodDecals.length > 120) {
+      this.bloodDecals.shift();
+    }
+    this.bloodDecals.push({
+      x: px + (Math.random() * 12 - 6),
+      y: py + (Math.random() * 12 - 6),
+      radius: 3 + Math.random() * 5,
+      color: Math.random() < 0.4 ? 'rgba(153, 27, 27, 0.45)' : 'rgba(185, 28, 28, 0.4)',
+      alpha: 1.0
+    });
+  }
+
+  addWoodSplinters(x, y, count = 6, color = '#b45309') {
+    const ts = this.tileSize;
+    const px = x * ts;
+    const py = y * ts;
+
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1.5 + Math.random() * 4.0;
+      this.particles.push({
+        x: px,
+        y: py,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 2.0 + Math.random() * 3.0,
+        color: color,
+        isWood: true,
+        life: 1.0,
+        decay: 0.05 + Math.random() * 0.05
+      });
+    }
+  }
+
   render(snapshot) {
     if (!snapshot || !this.map) return;
 
@@ -72,31 +201,48 @@ export class GameRenderer {
     const ts = this.tileSize;
     const now = Date.now();
 
+    this.ctx.save();
+
+    // 0. Apply Screen Shake
+    if (this.shakeIntensity > 0.1) {
+      const shakeX = (Math.random() - 0.5) * this.shakeIntensity;
+      const shakeY = (Math.random() - 0.5) * this.shakeIntensity;
+      this.ctx.translate(shakeX, shakeY);
+      this.shakeIntensity *= this.shakeDecay;
+    } else {
+      this.shakeIntensity = 0;
+    }
+
     // 1. Draw Map & Rooms
     this.renderMap(this.ctx, ts, snapshot);
 
-    // 2. Draw Barricades
+    // 2. Draw Blood Decals on Floor
+    this.renderBloodDecals(this.ctx);
+
+    // 3. Draw Barricades
     this.renderBarricades(this.ctx, snapshot.barricades, ts);
 
-    // 3. Draw Loot Drops
+    // 4. Draw Loot Drops
     this.renderLoot(this.ctx, snapshot.loot, ts, now);
 
-    // 4. Draw Zombies
+    // 5. Draw Zombies
     this.renderZombies(this.ctx, snapshot.zombies, ts);
 
-    // 5. Draw Survivors
-    this.renderSurvivors(this.ctx, snapshot.survivors, ts);
+    // 6. Draw Survivors
+    this.renderSurvivors(this.ctx, snapshot.survivors, ts, now);
 
-    // 6. Draw Combat Slashes & Floaties
+    // 7. Draw Visual FX, Tracers, Particles & Floaties
     this.renderEffects(this.ctx);
 
-    // 7. Draw Overlays (Victory / Game Over / Intermission)
+    this.ctx.restore();
+
+    // 8. Draw Overlays (Victory / Game Over / Intermission - not shaken)
     this.renderOverlays(this.ctx, snapshot);
   }
 
   renderMap(ctx, ts, snapshot) {
     // Outside Ground: Dynamic ambient lighting based on in-game time
-    let bgFill = '#0f172a'; // Midnight default
+    let bgFill = '#0a0f1d'; // Midnight deep blue
     if (snapshot?.isDawn || snapshot?.waveState === 'VICTORY') {
       bgFill = '#292524'; // Warm dawn twilight
     } else if (snapshot?.wave <= 3) {
@@ -134,9 +280,9 @@ export class GameRenderer {
 
     // Room Label Overlays
     if (this.map.rooms) {
-      ctx.font = '600 10px monospace';
+      ctx.font = '700 11px monospace';
       ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
 
       for (const key of Object.keys(this.map.rooms)) {
         const r = this.map.rooms[key];
@@ -149,7 +295,6 @@ export class GameRenderer {
       for (let x = 0; x < this.map.width; x++) {
         const tile = this.map.grid[y][x];
         if (tile === 2) { // WALL
-          // Wall Body
           ctx.fillStyle = '#334155';
           ctx.fillRect(x * ts, y * ts, ts, ts);
 
@@ -166,6 +311,16 @@ export class GameRenderer {
     }
   }
 
+  renderBloodDecals(ctx) {
+    for (let i = this.bloodDecals.length - 1; i >= 0; i--) {
+      const d = this.bloodDecals[i];
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
+      ctx.fillStyle = d.color;
+      ctx.fill();
+    }
+  }
+
   renderBarricades(ctx, barricades, ts) {
     if (!barricades) return;
 
@@ -175,21 +330,21 @@ export class GameRenderer {
       const hpRatio = b.hp / b.maxHp;
 
       if (b.isBreached) {
-        // Breached Barricade (Red dashed broken frame)
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
+        // Breached Barricade (Red flashing broken frame)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
         ctx.fillRect(bx + 4, by + 4, ts - 8, ts - 8);
 
         ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([5, 5]);
         ctx.strokeRect(bx + 2, by + 2, ts - 4, ts - 4);
         ctx.setLineDash([]);
 
         // Breached text
-        ctx.font = '700 9px sans-serif';
+        ctx.font = '800 10px sans-serif';
         ctx.fillStyle = '#f87171';
         ctx.textAlign = 'center';
-        ctx.fillText('BREACH', bx + ts / 2, by + ts / 2 + 3);
+        ctx.fillText('BREACH', bx + ts / 2, by + ts / 2 + 4);
       } else {
         // Intact / Damaged Barricade
         const isDoor = b.type === 'door';
@@ -209,10 +364,21 @@ export class GameRenderer {
         ctx.lineTo(bx + 6, by + ts - 6);
         ctx.stroke();
 
+        // Visual damage cracks if low HP
+        if (hpRatio < 0.6) {
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(bx + ts * 0.3, by + ts * 0.2);
+          ctx.lineTo(bx + ts * 0.5, by + ts * 0.5);
+          ctx.lineTo(bx + ts * 0.4, by + ts * 0.8);
+          ctx.stroke();
+        }
+
         // Repairing Sparkle Badge
         if (b.repairerCount > 0) {
-          ctx.font = '10px sans-serif';
-          ctx.fillText('🔨', bx + ts / 2, by + ts / 2 + 4);
+          ctx.font = '12px sans-serif';
+          ctx.fillText('🔨', bx + ts / 2, by + ts / 2 + 5);
         }
       }
 
@@ -241,10 +407,10 @@ export class GameRenderer {
       const lx = item.x * ts;
       const ly = item.y * ts + Math.sin(now / 200) * 3;
 
-      // Glow circle
+      // Pulse Glow circle
       ctx.beginPath();
-      ctx.arc(lx, ly, 12, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
+      ctx.arc(lx, ly, 12 + Math.sin(now / 150) * 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
       ctx.fill();
 
       // Health pack box
@@ -301,7 +467,7 @@ export class GameRenderer {
     }
   }
 
-  renderSurvivors(ctx, survivors, ts) {
+  renderSurvivors(ctx, survivors, ts, now) {
     if (!survivors) return;
 
     for (const s of survivors) {
@@ -325,6 +491,16 @@ export class GameRenderer {
         ctx.fillStyle = '#f87171';
         ctx.fillText('DOWNED', sx, sy - 6);
         continue;
+      }
+
+      // Low health warning aura pulse
+      const hpRatio = s.hp / s.maxHp;
+      if (hpRatio <= 0.3) {
+        ctx.beginPath();
+        ctx.arc(sx, sy, size * 0.85 + Math.sin(now / 100) * 3, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
       }
 
       // Survivor Body (Colored Square with rounded edges)
@@ -360,7 +536,6 @@ export class GameRenderer {
       ctx.fillText(s.name, sx, sy - 11);
 
       // Survivor Health Bar
-      const hpRatio = s.hp / s.maxHp;
       const barW = ts;
       const barH = 5;
       const barX = sx - barW / 2;
@@ -377,7 +552,69 @@ export class GameRenderer {
   }
 
   renderEffects(ctx) {
-    // Slashes
+    // 1. Bullet Tracers
+    for (let i = this.tracers.length - 1; i >= 0; i--) {
+      const t = this.tracers[i];
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = t.width;
+      ctx.globalAlpha = Math.max(0, t.life);
+      ctx.beginPath();
+      ctx.moveTo(t.x1, t.y1);
+      ctx.lineTo(t.x2, t.y2);
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+
+      t.life -= 0.15;
+      if (t.life <= 0) this.tracers.splice(i, 1);
+    }
+
+    // 2. Muzzle Flashes
+    for (let i = this.muzzleFlashes.length - 1; i >= 0; i--) {
+      const mf = this.muzzleFlashes[i];
+      ctx.save();
+      ctx.translate(mf.x, mf.y);
+      ctx.rotate(mf.angle);
+      ctx.fillStyle = '#fef08a';
+      ctx.globalAlpha = Math.max(0, mf.life);
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(16, -6);
+      ctx.lineTo(22, 0);
+      ctx.lineTo(16, 6);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+      mf.life -= 0.25;
+      if (mf.life <= 0) this.muzzleFlashes.splice(i, 1);
+    }
+
+    // 3. Particles (Blood & Wood splinters)
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, p.life);
+
+      if (p.isWood) {
+        ctx.fillRect(p.x, p.y, p.size * 1.5, p.size * 0.7);
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1.0;
+
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.94;
+      p.vy *= 0.94;
+      p.life -= p.decay;
+      if (p.life <= 0) this.particles.splice(i, 1);
+    }
+
+    // 4. Combat Slashes
     for (let i = this.slashEffects.length - 1; i >= 0; i--) {
       const s = this.slashEffects[i];
       ctx.strokeStyle = s.color;
@@ -389,15 +626,15 @@ export class GameRenderer {
       if (s.life <= 0) this.slashEffects.splice(i, 1);
     }
 
-    // Floating Text
+    // 5. Floating Text (Damage, XP, Heals)
     for (let i = this.floaties.length - 1; i >= 0; i--) {
       const f = this.floaties[i];
-      ctx.font = 'bold 11px monospace';
+      ctx.font = f.isCrit ? '900 13px monospace' : 'bold 11px monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = f.color;
       ctx.globalAlpha = Math.max(0, f.life);
       ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = f.isCrit ? 3 : 2;
       ctx.strokeText(f.text, f.x, f.y);
       ctx.fillText(f.text, f.x, f.y);
       ctx.globalAlpha = 1.0;
@@ -412,9 +649,9 @@ export class GameRenderer {
     if (snapshot.waveState === 'VICTORY') {
       // Warm Sunrise Golden Victory Screen
       const grad = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-      grad.addColorStop(0, 'rgba(245, 158, 11, 0.85)'); // Amber gold
-      grad.addColorStop(0.5, 'rgba(234, 88, 12, 0.88)'); // Orange
-      grad.addColorStop(1, 'rgba(15, 23, 42, 0.95)'); // Dark base
+      grad.addColorStop(0, 'rgba(245, 158, 11, 0.88)'); // Amber gold
+      grad.addColorStop(0.5, 'rgba(234, 88, 12, 0.90)'); // Orange
+      grad.addColorStop(1, 'rgba(15, 23, 42, 0.96)'); // Dark base
 
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -449,13 +686,16 @@ export class GameRenderer {
       ctx.fillText(`🌅 Next Night begins in ${snapshot.victoryTimer || 60}s...`, this.canvas.width / 2, this.canvas.height / 2 + 80);
 
     } else if (snapshot.waveState === 'GAME_OVER') {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
       ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-      ctx.font = '900 30px system-ui, sans-serif';
+      ctx.font = '900 32px system-ui, sans-serif';
       ctx.fillStyle = '#ef4444';
       ctx.textAlign = 'center';
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur = 15;
       ctx.fillText('💀 SQUAD WIPED OUT 💀', this.canvas.width / 2, this.canvas.height / 2 - 25);
+      ctx.shadowBlur = 0;
 
       ctx.font = '700 16px monospace';
       ctx.fillStyle = '#f87171';
@@ -466,12 +706,12 @@ export class GameRenderer {
       ctx.fillText(`Restarting run in ${snapshot.gameOverTimer || 5}s...`, this.canvas.width / 2, this.canvas.height / 2 + 40);
 
     } else if (snapshot.waveState === 'INTERMISSION') {
-      const bannerW = 320;
-      const bannerH = 34;
+      const bannerW = 340;
+      const bannerH = 36;
       const bx = (this.canvas.width - bannerW) / 2;
       const by = 16;
 
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       ctx.fillRect(bx, by, bannerW, bannerH);
       ctx.strokeStyle = '#22c55e';
       ctx.lineWidth = 1.5;
@@ -481,7 +721,7 @@ export class GameRenderer {
       ctx.font = '700 12px monospace';
       ctx.fillStyle = '#4ade80';
       ctx.textAlign = 'center';
-      ctx.fillText(`🛡️ INTERMISSION: ${nextTime} IN ${snapshot.intermissionTimer}s`, this.canvas.width / 2, by + 21);
+      ctx.fillText(`🛡️ INTERMISSION: ${nextTime} IN ${snapshot.intermissionTimer}s`, this.canvas.width / 2, by + 22);
     }
   }
 }

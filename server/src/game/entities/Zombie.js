@@ -115,15 +115,19 @@ export class Zombie {
     
     if (this.attackCooldownTimer <= 0) {
       this.attackCooldownTimer = this.attackCooldown;
+      const wasBreached = barricade.isBreached;
       const dmg = barricade.damage(this.damage, engine.tickCount);
 
       engine.addCombatEvent({
         type: 'BARRICADE_HIT',
         targetId: barricade.id,
+        targetName: barricade.name,
         zombieId: this.id,
+        zombieType: this.type,
         damage: dmg,
         x: barricade.x + 0.5,
-        y: barricade.y + 0.5
+        y: barricade.y + 0.5,
+        breached: !wasBreached && barricade.isBreached
       });
 
       // Spiked barricades perk reflection damage
@@ -169,7 +173,9 @@ export class Zombie {
         engine.addCombatEvent({
           type: 'SURVIVOR_HIT',
           targetId: nearest.id,
+          targetName: nearest.name,
           zombieId: this.id,
+          zombieType: this.type,
           damage: dealt,
           x: nearest.x,
           y: nearest.y

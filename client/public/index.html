@@ -50,6 +50,12 @@
     </div>
 
     <div class="header-actions">
+      <!-- Audio SFX Controls -->
+      <div class="audio-controls">
+        <button id="btnMuteAudio" class="btn btn-icon" title="Toggle Sound">🔊</button>
+        <input type="range" id="audioVolumeSlider" min="0" max="1" step="0.05" value="0.5" class="volume-slider" title="SFX Volume">
+      </div>
+
       <button id="btnToggleStreamMode" class="btn btn-primary">OBS Stream Mode</button>
       <button id="btnResetGame" class="btn btn-danger">Reset Map</button>
     </div>
@@ -60,6 +66,17 @@
     <!-- Left Stage: Game Canvas -->
     <div class="canvas-wrapper">
       <canvas id="gameCanvas" width="800" height="800"></canvas>
+      
+      <!-- Top-Right Live Killfeed Overlay -->
+      <div id="killfeedContainer" class="killfeed-container">
+        <!-- Live killfeed items dynamically injected here -->
+      </div>
+
+      <!-- Critical Breach Alert Banner -->
+      <div id="breachAlertBanner" class="breach-alert-banner">
+        ⚠️ <span id="breachAlertText">WINDOW BREACHED!</span>
+      </div>
+
       <div id="perksContainer" class="perks-bar">
         <!-- Active perk badges render here -->
       </div>

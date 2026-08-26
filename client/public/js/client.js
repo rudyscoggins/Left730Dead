@@ -1,9 +1,11 @@
 /**
  * Frontend WebSocket Client & UI Controller for Left 730 Dead
  * Dusk to Dawn (7:30 PM - 7:30 AM) Survival Campaign Controller
+ * Integrated with Audio SFX Synthesizer, Dynamic Stream Killfeed, and Breach Warnings.
  */
 
 import { GameRenderer } from './renderer.js';
+import { soundManager } from './audio.js';
 
 class GameClient {
   constructor() {
@@ -29,13 +31,48 @@ class GameClient {
     this.perkModal = document.getElementById('perkModal');
     this.perkOptions = document.getElementById('perkOptions');
 
+    // Audio & Stage Elements
+    this.btnMuteAudio = document.getElementById('btnMuteAudio');
+    this.audioVolumeSlider = document.getElementById('audioVolumeSlider');
+    this.killfeedContainer = document.getElementById('killfeedContainer');
+    this.breachAlertBanner = document.getElementById('breachAlertBanner');
+    this.breachAlertText = document.getElementById('breachAlertText');
+
     // Controls
     this.btnToggleAutoWave = document.getElementById('btnToggleAutoWave');
     this.btnToggleEndless = document.getElementById('btnToggleEndless');
 
+    this.initAudioUI();
     this.initEventListeners();
     this.connect();
     this.startRenderLoop();
+  }
+
+  initAudioUI() {
+    if (this.audioVolumeSlider) {
+      this.audioVolumeSlider.value = soundManager.volume;
+      this.audioVolumeSlider.addEventListener('input', (e) => {
+        soundManager.setVolume(parseFloat(e.target.value));
+        if (soundManager.isMuted) {
+          soundManager.toggleMute();
+          this.updateMuteIcon();
+        }
+      });
+    }
+
+    if (this.btnMuteAudio) {
+      this.updateMuteIcon();
+      this.btnMuteAudio.addEventListener('click', () => {
+        const isMuted = soundManager.toggleMute();
+        this.updateMuteIcon();
+      });
+    }
+  }
+
+  updateMuteIcon() {
+    if (this.btnMuteAudio) {
+      this.btnMuteAudio.textContent = soundManager.isMuted ? '🔇' : '🔊';
+    }
   }
 
   connect() {
@@ -87,21 +124,107 @@ class GameClient {
       this.renderer.setMap(data.map);
     } else if (data.type === 'SNAPSHOT') {
       this.latestSnapshot = data;
+      this.processCombatEvents(data.combatEvents);
       this.renderer.processCombatEvents(data.combatEvents);
+      this.checkBreachAlerts(data.barricades);
       this.updateHUD(data);
     } else if (data.type === 'EVENT') {
       this.handleGameEvent(data.event);
     }
   }
 
+  processCombatEvents(events) {
+    if (!events || !events.length) return;
+
+    for (const evt of events) {
+      if (evt.type === 'DAMAGE') {
+        const weaponType = evt.attackerRole === 'SLAYER' ? 'shotgun' : evt.attackerRole === 'SENTINEL' ? 'rifle' : 'pistol';
+        soundManager.playGunshot(weaponType);
+        soundManager.playZombieHit(evt.damage >= 25);
+      } else if (evt.type === 'KILL') {
+        soundManager.playZombieDeath(evt.targetType === 'brute');
+        this.pushKillfeed(evt);
+      } else if (evt.type === 'HEAL') {
+        soundManager.playLootPickup();
+      } else if (evt.type === 'REPAIR') {
+        soundManager.playRepair();
+      } else if (evt.type === 'BARRICADE_HIT') {
+        if (evt.breached) {
+          soundManager.playBarricadeBreach();
+        } else {
+          soundManager.playBarricadeHit();
+        }
+      } else if (evt.type === 'SURVIVOR_HIT') {
+        soundManager.playSurvivorHurt();
+      }
+    }
+  }
+
+  pushKillfeed(evt) {
+    if (!this.killfeedContainer) return;
+
+    const item = document.createElement('div');
+    const isBrute = evt.targetType === 'brute';
+    item.className = `killfeed-item ${isBrute ? 'brute-kill' : ''}`;
+
+    const attacker = evt.attackerName || 'Squad';
+    const role = evt.attackerRole || 'SURVIVOR';
+    const weaponIcon = role === 'SLAYER' ? '💥 Shotgun' : role === 'SENTINEL' ? '🎯 Rifle' : '🔫 Pistol';
+    const target = isBrute ? '👹 BRUTE' : '🧟 Zombie';
+
+    item.innerHTML = `
+      <span class="killfeed-attacker">${attacker}</span>
+      <span class="killfeed-weapon">${weaponIcon}</span>
+      <span class="killfeed-target">${target}</span>
+      <span class="killfeed-xp">+${evt.xp} XP</span>
+    `;
+
+    this.killfeedContainer.appendChild(item);
+
+    // Limit to max 5 simultaneous items
+    if (this.killfeedContainer.children.length > 5) {
+      this.killfeedContainer.removeChild(this.killfeedContainer.children[0]);
+    }
+
+    // Auto remove after 3.5 seconds
+    setTimeout(() => {
+      if (item.parentNode === this.killfeedContainer) {
+        item.style.opacity = '0';
+        item.style.transition = 'opacity 0.3s ease';
+        setTimeout(() => item.remove(), 300);
+      }
+    }, 3500);
+  }
+
+  checkBreachAlerts(barricades) {
+    if (!this.breachAlertBanner || !barricades) return;
+
+    const breached = barricades.find(b => b.isBreached);
+    const critical = barricades.find(b => !b.isBreached && b.hp / b.maxHp <= 0.25);
+
+    if (breached) {
+      this.breachAlertText.textContent = `🚨 ${breached.name.toUpperCase()} BREACHED!`;
+      this.breachAlertBanner.classList.add('active');
+    } else if (critical) {
+      this.breachAlertText.textContent = `⚠️ ${critical.name.toUpperCase()} AT CRITICAL HEALTH (${Math.round(critical.hp)} HP)`;
+      this.breachAlertBanner.classList.add('active');
+    } else {
+      this.breachAlertBanner.classList.remove('active');
+    }
+  }
+
   handleGameEvent(evt) {
     if (evt.type === 'WAVE_STARTED') {
+      soundManager.playWaveStart();
       this.logEvent(`🌊 Wave ${evt.wave} [${evt.inGameTime || '7:30 PM'}] started! (${evt.totalZombies} zombies incoming)`, 'wave');
     } else if (evt.type === 'WAVE_CLEARED') {
+      soundManager.playWaveClear();
       this.logEvent(`🎉 Wave ${evt.wave} cleared! Next: ${evt.inGameTime || 'Night'} (+${evt.xpGained} XP bonus)`, 'wave');
     } else if (evt.type === 'VICTORY') {
+      soundManager.playWaveClear();
       this.logEvent(`🏆 7:30 AM DAWN REACHED! Squad survived the night! (Streak: ${evt.winStreak}🔥)`, 'level');
     } else if (evt.type === 'LEVEL_UP') {
+      soundManager.playLevelUp();
       this.logEvent(`⭐ House reached Level ${evt.level}!`, 'level');
       if (this.latestSnapshot?.progression?.perkMode === 'DRIVEN') {
         this.showPerkModal(evt.offeredPerks);
@@ -110,6 +233,7 @@ class GameClient {
       this.logEvent(`✨ Perk Unlocked: ${evt.perk.icon} ${evt.perk.name} (${evt.perk.desc})`, 'level');
       this.hidePerkModal();
     } else if (evt.type === 'GAME_OVER') {
+      soundManager.playGameOver();
       this.logEvent(`💀 SQUAD WIPED OUT at ${evt.inGameTime || 'Night'}! Streak reset. Auto-restarting...`, 'kill');
     } else if (evt.type === 'GAME_RESET') {
       this.logEvent(`🔄 Map reset to 7:30 PM (Wave 1)`, 'system');
@@ -300,8 +424,8 @@ class GameClient {
     // Barricade Damage Controls
     document.getElementById('btnDamageNorthWin').onclick = () => this.send({ type: 'DAMAGE_BARRICADE', barricadeId: 'win_north', damage: 35 });
     document.getElementById('btnDamageSouthWin').onclick = () => this.send({ type: 'DAMAGE_BARRICADE', barricadeId: 'win_south', damage: 35 });
-    document.getElementById('btnDamageWestWin').onclick = () => this.send({ type: 'DAMAGE_BARRICADE', barricadeId: 'win_west', damage: 35 });
     document.getElementById('btnDamageEastWin').onclick = () => this.send({ type: 'DAMAGE_BARRICADE', barricadeId: 'win_east', damage: 35 });
+    document.getElementById('btnDamageWestWin').onclick = () => this.send({ type: 'DAMAGE_BARRICADE', barricadeId: 'win_west', damage: 35 });
     document.getElementById('btnDamageDoor').onclick = () => this.send({ type: 'DAMAGE_BARRICADE', barricadeId: 'door_main', damage: 50 });
     document.getElementById('btnRepairAll').onclick = () => {
       for (const id of ['win_north', 'win_south', 'win_west', 'win_east', 'door_main']) {
