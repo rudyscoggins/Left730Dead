@@ -111,6 +111,25 @@ export class GameMap {
     return this.grid[iy][ix];
   }
 
+  isPositionWalkable(x, y, radius = 0.38) {
+    if (x - radius < 5.05 || x + radius > 14.95 || y - radius < 5.05 || y + radius > 14.95) {
+      return false;
+    }
+    const minX = Math.floor(x - radius);
+    const maxX = Math.floor(x + radius);
+    const minY = Math.floor(y - radius);
+    const maxY = Math.floor(y + radius);
+
+    for (let ty = minY; ty <= maxY; ty++) {
+      for (let tx = minX; tx <= maxX; tx++) {
+        if (this.grid[ty] && (this.grid[ty][tx] === TILE_TYPES.WALL || this.grid[ty][tx] === TILE_TYPES.OUTSIDE)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   findRoomByName(name) {
     if (!name) return null;
     const query = name.toLowerCase().replace(/[^a-z0-9]/g, '');

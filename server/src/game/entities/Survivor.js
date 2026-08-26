@@ -1,6 +1,7 @@
 /**
  * Survivor Entity Controller (Distributed Autonomous AI + Manual Command Queue)
- * Clean, robust decision pipeline preventing deadlocks and enforcing house defense.
+ * Clean, robust decision pipeline preventing deadlocks, enforcing house defense,
+ * and preventing player clipping with dynamic obstacle avoidance and slot distribution.
  */
 
 import { Pathfinding } from '../Pathfinding.js';
@@ -37,7 +38,36 @@ export const GUARD_STATIONS = [
   { name: 'Central Hall', x: 10.0, y: 10.0 }
 ];
 
-// Interior floor positions adjacent to barricades for safe inside repair/defense
+// Slotted interior positions adjacent to barricades so multiple survivors don't overlap
+export const BARRICADE_DEFENSE_SLOTS = {
+  win_north: [
+    { x: 7.0, y: 5.5 },
+    { x: 8.0, y: 5.5 },
+    { x: 7.5, y: 6.3 }
+  ],
+  win_south: [
+    { x: 7.0, y: 14.5 },
+    { x: 8.0, y: 14.5 },
+    { x: 7.5, y: 13.7 }
+  ],
+  win_west: [
+    { x: 5.5, y: 9.0 },
+    { x: 5.5, y: 10.0 },
+    { x: 6.3, y: 9.5 }
+  ],
+  win_east: [
+    { x: 14.5, y: 9.0 },
+    { x: 14.5, y: 10.0 },
+    { x: 13.7, y: 9.5 }
+  ],
+  door_main: [
+    { x: 11.8, y: 14.5 },
+    { x: 12.8, y: 14.5 },
+    { x: 12.3, y: 13.7 }
+  ]
+};
+
+// Legacy fallback dictionary for single points
 export const BARRICADE_DEFENSE_SPOTS = {
   win_north: { x: 7.5, y: 5.5 },
   win_south: { x: 7.5, y: 14.5 },
@@ -110,6 +140,35 @@ export class Survivor {
     return actual;
   }
 
+  getBarricadeSlot(barricadeId, engine) {
+    const slots = BARRICADE_DEFENSE_SLOTS[barricadeId] || [{ x: 7.5, y: 7.5 }];
+    // 1. First search for an unoccupied slot
+    for (const slot of slots) {
+      const occupied = engine.survivors.some(s => s.id !== this.id && s.isAlive() && Math.hypot(s.x - slot.x, s.y - slot.y) < 0.65);
+      if (!occupied) return slot;
+    }
+    // 2. Fallback to index-based distribution
+    const idx = engine.survivors.findIndex(s => s.id === this.id);
+    return slots[Math.max(0, idx) % slots.length];
+  }
+
+  getGuardStationTarget(station, engine) {
+    if (!station) return { x: 10.0, y: 10.0 };
+    const roomSurvivors = engine.survivors.filter(s => s.isAlive() && (s.guardStation?.name === station.name || s.id === this.id));
+    if (roomSurvivors.length <= 1) return { x: station.x, y: station.y };
+
+    const survivorIdx = roomSurvivors.findIndex(s => s.id === this.id);
+    const angle = (Math.max(0, survivorIdx) * (Math.PI * 2 / roomSurvivors.length)) + 0.35;
+    const radius = 0.85;
+    const targetX = station.x + Math.cos(angle) * radius;
+    const targetY = station.y + Math.sin(angle) * radius;
+
+    if (engine.map && engine.map.isPositionWalkable(targetX, targetY, 0.35)) {
+      return { x: targetX, y: targetY };
+    }
+    return { x: station.x, y: station.y };
+  }
+
   executeManualCommand(commandObj, engine) {
     this.manualCommand = commandObj;
     this.manualTicksRemaining = Math.floor(5 * engine.tps); // 5 seconds in ticks
@@ -119,17 +178,19 @@ export class Survivor {
 
     if (command === '!go' && targetRoom) {
       this.stateDetail = `Moving to ${targetRoom.name}`;
-      this.path = Pathfinding.findPath(this.x, this.y, targetRoom.x + 0.5, targetRoom.y + 0.5, engine.map, engine.barricadesMap, false);
+      const targetPos = this.getGuardStationTarget(targetRoom, engine);
+      this.path = Pathfinding.findPath(this.x, this.y, targetPos.x, targetPos.y, engine.map, engine.barricadesMap, false);
       this.pathIndex = 0;
     } else if (command === '!fix' && targetBarricade) {
       this.stateDetail = `Fixing ${targetBarricade.name}`;
       this.targetBarricadeId = targetBarricade.id;
-      const spot = BARRICADE_DEFENSE_SPOTS[targetBarricade.id] || { x: targetBarricade.x + 0.5, y: targetBarricade.y + 0.5 };
+      const spot = this.getBarricadeSlot(targetBarricade.id, engine);
       this.path = Pathfinding.findPath(this.x, this.y, spot.x, spot.y, engine.map, engine.barricadesMap, false);
       this.pathIndex = 0;
     } else if (command === '!hold' && targetRoom) {
       this.stateDetail = `Holding ${targetRoom.name}`;
-      this.path = Pathfinding.findPath(this.x, this.y, targetRoom.x + 0.5, targetRoom.y + 0.5, engine.map, engine.barricadesMap, false);
+      const targetPos = this.getGuardStationTarget(targetRoom, engine);
+      this.path = Pathfinding.findPath(this.x, this.y, targetPos.x, targetPos.y, engine.map, engine.barricadesMap, false);
       this.pathIndex = 0;
     } else if (command === '!grab' && targetLoot && engine.map.isInsideHouse(targetLoot.x, targetLoot.y)) {
       this.stateDetail = 'Grabbing loot';
@@ -137,7 +198,14 @@ export class Survivor {
       this.pathIndex = 0;
     } else if (command === '!help' && targetPlayer) {
       this.stateDetail = `Assisting ${targetPlayer.name}`;
-      this.path = Pathfinding.findPath(this.x, this.y, targetPlayer.x, targetPlayer.y, engine.map, engine.barricadesMap, false);
+      // Offset target by 0.9 tiles to avoid walking directly onto the player
+      const angle = Math.random() * Math.PI * 2;
+      const assistX = targetPlayer.x + Math.cos(angle) * 0.85;
+      const assistY = targetPlayer.y + Math.sin(angle) * 0.85;
+      const finalX = engine.map.isPositionWalkable(assistX, assistY, 0.35) ? assistX : targetPlayer.x;
+      const finalY = engine.map.isPositionWalkable(assistX, assistY, 0.35) ? assistY : targetPlayer.y;
+
+      this.path = Pathfinding.findPath(this.x, this.y, finalX, finalY, engine.map, engine.barricadesMap, false);
       this.pathIndex = 0;
     }
   }
@@ -253,11 +321,11 @@ export class Survivor {
     // -------------------------------------------------------------
     const bestBarricade = this.findBestBarricadeTarget(engine);
     if (bestBarricade) {
-      const spot = BARRICADE_DEFENSE_SPOTS[bestBarricade.id] || { x: bestBarricade.x + 0.5, y: bestBarricade.y + 0.5 };
+      const spot = this.getBarricadeSlot(bestBarricade.id, engine);
       const distToSpot = Math.hypot(this.x - spot.x, this.y - spot.y);
       const distToBarricade = Math.hypot(this.x - (bestBarricade.x + 0.5), this.y - (bestBarricade.y + 0.5));
 
-      if (distToSpot <= 0.8 || distToBarricade <= this.repairRange) {
+      if (distToSpot <= 0.85 || distToBarricade <= this.repairRange) {
         // Strike any threat near this window
         const threat = engine.zombies.find(z => z.isAlive() && Math.hypot(this.x - z.x, this.y - z.y) <= 2.7);
         if (threat) {
@@ -293,11 +361,12 @@ export class Survivor {
     // PRIORITY 5: Guard Sector / Spread Out to Assigned Station
     // -------------------------------------------------------------
     const station = this.guardStation || GUARD_STATIONS[0];
-    const stationDist = Math.hypot(this.x - station.x, this.y - station.y);
+    const targetPos = this.getGuardStationTarget(station, engine);
+    const stationDist = Math.hypot(this.x - targetPos.x, this.y - targetPos.y);
 
-    if (stationDist > 1.2) {
+    if (stationDist > 0.8) {
       if (!this.path || this.path.length === 0) {
-        this.path = Pathfinding.findPath(this.x, this.y, station.x, station.y, engine.map, engine.barricadesMap, false);
+        this.path = Pathfinding.findPath(this.x, this.y, targetPos.x, targetPos.y, engine.map, engine.barricadesMap, false);
         this.pathIndex = 0;
       }
       this.moveAlongPath(dt, engine);
@@ -316,11 +385,14 @@ export class Survivor {
 
     // Check if stationed at any barricade defense spot
     let isAtDefenseSpot = false;
-    for (const spot of Object.values(BARRICADE_DEFENSE_SPOTS)) {
-      if (Math.hypot(this.x - spot.x, this.y - spot.y) <= 1.2) {
-        isAtDefenseSpot = true;
-        break;
+    for (const slotList of Object.values(BARRICADE_DEFENSE_SLOTS)) {
+      for (const spot of slotList) {
+        if (Math.hypot(this.x - spot.x, this.y - spot.y) <= 1.2) {
+          isAtDefenseSpot = true;
+          break;
+        }
       }
+      if (isAtDefenseSpot) break;
     }
 
     const maxReach = isAtDefenseSpot ? 2.7 : this.attackRange;
@@ -329,11 +401,12 @@ export class Survivor {
     for (const z of engine.zombies) {
       if (!z.isAlive()) continue;
       const dist = Math.hypot(this.x - z.x, this.y - z.y);
-      if (dist <= maxReach && dist < minDist) {
+      if (dist <= minDist) {
         minDist = dist;
         closest = z;
       }
     }
+
     return closest;
   }
 
@@ -361,8 +434,7 @@ export class Survivor {
     for (const b of engine.barricades) {
       const bx = b.x + 0.5;
       const by = b.y + 0.5;
-      const spot = BARRICADE_DEFENSE_SPOTS[b.id] || { x: bx, y: by };
-      const dist = Math.hypot(this.x - spot.x, this.y - spot.y);
+      const dist = Math.hypot(this.x - bx, this.y - by);
       const hpMissing = b.maxHp - b.hp;
       const isBreachedBonus = b.isBreached ? 80 : 0;
 
@@ -484,23 +556,63 @@ export class Survivor {
 
     const targetNode = this.path[this.pathIndex];
     const speed = this.baseSpeed * engine.progression.modifiers.moveSpeedMultiplier;
-    const dx = targetNode.x - this.x;
-    const dy = targetNode.y - this.y;
-    const dist = Math.hypot(dx, dy);
+    let dx = targetNode.x - this.x;
+    let dy = targetNode.y - this.y;
+    let dist = Math.hypot(dx, dy);
 
-    const step = speed * dt;
-    if (dist <= step || dist < 0.2) {
-      this.x = Math.max(5.1, Math.min(14.9, targetNode.x));
-      this.y = Math.max(5.1, Math.min(14.9, targetNode.y));
+    if (dist < 0.25) {
       this.pathIndex++;
       if (this.pathIndex >= this.path.length) {
         this.path = [];
+        return;
       }
-    } else {
-      const nextX = this.x + (dx / dist) * step;
-      const nextY = this.y + (dy / dist) * step;
-      this.x = Math.max(5.1, Math.min(14.9, nextX));
-      this.y = Math.max(5.1, Math.min(14.9, nextY));
+      return;
+    }
+
+    // Direct movement vector
+    let vx = (dx / dist) * speed;
+    let vy = (dy / dist) * speed;
+
+    // Dynamic obstacle avoidance against other living survivors
+    for (const other of engine.survivors) {
+      if (other.id === this.id || !other.isAlive()) continue;
+
+      const toOtherX = other.x - this.x;
+      const toOtherY = other.y - this.y;
+      const otherDist = Math.hypot(toOtherX, toOtherY);
+
+      if (otherDist > 0.02 && otherDist < 1.1) {
+        // Dot product to check if other survivor is in front of travel
+        const dot = (vx * toOtherX + vy * toOtherY) / (speed * otherDist);
+        if (dot > 0.25) {
+          // Tangent (lateral) steering force to walk around
+          const perpX = -toOtherY / otherDist;
+          const perpY = toOtherX / otherDist;
+          const steerIntensity = (1.1 - otherDist) * 1.6;
+
+          vx += perpX * speed * steerIntensity;
+          vy += perpY * speed * steerIntensity;
+        }
+      }
+    }
+
+    // Normalize velocity back to intended speed
+    const currentSpeed = Math.hypot(vx, vy);
+    if (currentSpeed > 0) {
+      vx = (vx / currentSpeed) * speed;
+      vy = (vy / currentSpeed) * speed;
+    }
+
+    const nextX = this.x + vx * dt;
+    const nextY = this.y + vy * dt;
+
+    if (engine.map.isPositionWalkable(nextX, nextY, 0.38)) {
+      this.x = nextX;
+      this.y = nextY;
+    } else if (engine.map.isPositionWalkable(nextX, this.y, 0.38)) {
+      this.x = nextX;
+    } else if (engine.map.isPositionWalkable(this.x, nextY, 0.38)) {
+      this.y = nextY;
     }
   }
 

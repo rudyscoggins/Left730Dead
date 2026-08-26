@@ -137,8 +137,23 @@ export class GameEngine {
     }
 
     const spawnIndex = this.survivors.length % this.map.survivorSpawnPoints.length;
-    const spawnPos = this.map.survivorSpawnPoints[spawnIndex];
+    const baseSpawnPos = this.map.survivorSpawnPoints[spawnIndex];
     const stationIndex = this.survivors.length % GUARD_STATIONS.length;
+
+    // Find non-overlapping spawn coordinate with minimum 0.85 clearance
+    let spawnX = baseSpawnPos.x + 0.5;
+    let spawnY = baseSpawnPos.y + 0.5;
+
+    for (let offsetAngle = 0; offsetAngle < Math.PI * 2; offsetAngle += Math.PI / 4) {
+      const isOccupied = this.survivors.some(s => s.isAlive() && Math.hypot(s.x - spawnX, s.y - spawnY) < 0.85);
+      if (!isOccupied) break;
+      const testX = baseSpawnPos.x + 0.5 + Math.cos(offsetAngle) * 0.85;
+      const testY = baseSpawnPos.y + 0.5 + Math.sin(offsetAngle) * 0.85;
+      if (this.map.isPositionWalkable(testX, testY, 0.38)) {
+        spawnX = testX;
+        spawnY = testY;
+      }
+    }
 
     const survivor = new Survivor({
       id: `s_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -148,8 +163,8 @@ export class GameEngine {
       avatarUrl,
       role: role || (this.survivors.length === 0 ? 'CARPENTER' : 'SLAYER'),
       guardStation: station || GUARD_STATIONS[stationIndex],
-      x: spawnPos.x + 0.5,
-      y: spawnPos.y + 0.5
+      x: spawnX,
+      y: spawnY
     });
 
     this.survivors.push(survivor);
@@ -371,9 +386,14 @@ export class GameEngine {
 
     for (let i = 0; i < this.survivors.length; i++) {
       const s = this.survivors[i];
-      const pos = this.map.survivorSpawnPoints[i % this.map.survivorSpawnPoints.length];
-      s.x = pos.x + 0.5;
-      s.y = pos.y + 0.5;
+      const basePos = this.map.survivorSpawnPoints[i % this.map.survivorSpawnPoints.length];
+      const angle = (i * (Math.PI * 2 / Math.max(1, this.survivors.length))) + 0.2;
+      const offset = this.survivors.length > 4 ? 0.75 : 0;
+      const testX = basePos.x + 0.5 + Math.cos(angle) * offset;
+      const testY = basePos.y + 0.5 + Math.sin(angle) * offset;
+
+      s.x = this.map.isPositionWalkable(testX, testY, 0.38) ? testX : (basePos.x + 0.5);
+      s.y = this.map.isPositionWalkable(testX, testY, 0.38) ? testY : (basePos.y + 0.5);
       s.hp = s.maxHp;
       s.state = SURVIVOR_STATES.IDLE;
       s.stateDetail = 'Guarding';
@@ -401,6 +421,68 @@ export class GameEngine {
         type: 'EVENT',
         event: evt
       });
+    }
+  }
+
+  resolveSurvivorCollisions() {
+    const MIN_DISTANCE = 0.90; // Minimum separation between survivors (diameter ~0.90 tiles)
+    const aliveSurvivors = this.survivors.filter(s => s.isAlive());
+    if (aliveSurvivors.length < 2) return;
+
+    // Run 3 relaxation passes for clean multi-body separation
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = 0; i < aliveSurvivors.length; i++) {
+        for (let j = i + 1; j < aliveSurvivors.length; j++) {
+          const s1 = aliveSurvivors[i];
+          const s2 = aliveSurvivors[j];
+
+          let dx = s1.x - s2.x;
+          let dy = s1.y - s2.y;
+          let dist = Math.hypot(dx, dy);
+
+          if (dist < MIN_DISTANCE) {
+            // Handle perfect overlap
+            if (dist < 0.001) {
+              const angle = ((i + 1) * (Math.PI * 2 / aliveSurvivors.length));
+              dx = Math.cos(angle) * 0.05;
+              dy = Math.sin(angle) * 0.05;
+              dist = 0.05;
+            }
+
+            const overlap = MIN_DISTANCE - dist;
+            const nx = dx / dist;
+            const ny = dy / dist;
+
+            // Push each survivor by half the overlap
+            const pushX = nx * (overlap * 0.5);
+            const pushY = ny * (overlap * 0.5);
+
+            const s1NewX = s1.x + pushX;
+            const s1NewY = s1.y + pushY;
+            const s2NewX = s2.x - pushX;
+            const s2NewY = s2.y - pushY;
+
+            // Apply push if walkable on map floor
+            if (this.map.isPositionWalkable(s1NewX, s1NewY, 0.36)) {
+              s1.x = s1NewX;
+              s1.y = s1NewY;
+            } else if (this.map.isPositionWalkable(s1NewX, s1.y, 0.36)) {
+              s1.x = s1NewX;
+            } else if (this.map.isPositionWalkable(s1.x, s1NewY, 0.36)) {
+              s1.y = s1NewY;
+            }
+
+            if (this.map.isPositionWalkable(s2NewX, s2NewY, 0.36)) {
+              s2.x = s2NewX;
+              s2.y = s2NewY;
+            } else if (this.map.isPositionWalkable(s2NewX, s2.y, 0.36)) {
+              s2.x = s2NewX;
+            } else if (this.map.isPositionWalkable(s2.x, s2NewY, 0.36)) {
+              s2.y = s2NewY;
+            }
+          }
+        }
+      }
     }
   }
 
@@ -480,6 +562,9 @@ export class GameEngine {
         }
       }
     }
+
+    // 5.1 Enforce Anti-Clipping: Resolve player-to-player body collisions & separation
+    this.resolveSurvivorCollisions();
 
     // 6. Update Zombies
     for (const zombie of this.zombies) {
