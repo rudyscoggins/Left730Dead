@@ -900,59 +900,72 @@ export class GameRenderer {
       ctx.lineTo(3, -9 + runBounce);
       ctx.stroke();
 
-      // 4. PROMINENT CHIBI HEAD & CUSTOMIZABLE FACE (Big Expressive Face)
+      // 4. PROMINENT CHIBI HEAD (Clear Smiley Face & Glasses)
       const skinTone = '#fde68a';
-      const headRadius = 10.5;
+      const headRadius = 11;
+      const headX = 1;
+      const headY = -26 + runBounce;
 
-      // Big Rounded Chibi Head
+      // Neat Hair Layer (Top & Back of Head)
+      ctx.fillStyle = '#78350f'; // Warm Brown Hair
+      ctx.beginPath();
+      ctx.arc(headX - 1, headY - 1, headRadius + 1.2, Math.PI * 0.6, Math.PI * 1.95);
+      ctx.fill();
+      ctx.strokeStyle = '#451a03';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Big Bright Skin-Toned Head
       ctx.fillStyle = skinTone;
       ctx.beginPath();
-      ctx.arc(2, -26 + runBounce, headRadius, 0, Math.PI * 2);
+      ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#b45309';
+      ctx.strokeStyle = '#d97706';
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Cute Profile Nose
+      // Cute Profile Nose Bump
       ctx.fillStyle = skinTone;
-      ctx.fillRect(10, -26.5 + runBounce, 2.5, 2.5);
+      ctx.fillRect(headX + 9.5, headY - 1.5, 2.5, 2.5);
 
-      // Big Expressive Chibi Eye
-      ctx.fillStyle = '#0f172a';
+      // Pink Cheek Blush
+      ctx.fillStyle = 'rgba(244, 114, 182, 0.65)';
       ctx.beginPath();
-      ctx.ellipse(6.5, -27.5 + runBounce, 2.8, 3.8, 0, 0, Math.PI * 2);
+      ctx.ellipse(headX + 5, headY + 3, 2.5, 1.8, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Eye Specular Highlight (Cute Anime/Arcade Glisten)
+      // Cute Happy Smile :)
+      ctx.strokeStyle = '#78350f';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(headX + 5.5, headY + 2, 3.5, 0.1, Math.PI * 0.85);
+      ctx.stroke();
+
+      // Expressive Eye
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.ellipse(headX + 5.5, headY - 2.5, 2.2, 3.0, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eye Specular Sparkle Highlight
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
-      ctx.arc(7.5, -29 + runBounce, 1.2, 0, Math.PI * 2);
+      ctx.arc(headX + 6.3, headY - 3.8, 1.1, 0, Math.PI * 2);
       ctx.fill();
 
-      // Trimmed Beard / Stubble Contour along jawline
-      ctx.fillStyle = 'rgba(28, 25, 23, 0.45)';
-      ctx.fillRect(2, -20 + runBounce, 8, 3.5);
-
-      // Signature 730 Society Ballcap (Covering top half of big head)
-      ctx.fillStyle = '#0f172a';
+      // Classic Wireframe Glasses
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.6;
+      // Front Rim
+      ctx.strokeRect(headX + 2.5, headY - 5.5, 6.5, 6);
+      // Ear Temple extending back
       ctx.beginPath();
-      ctx.arc(2, -27 + runBounce, 11, Math.PI * 0.7, Math.PI * 2.3);
-      ctx.fill();
-      ctx.strokeStyle = '#020617';
-      ctx.lineWidth = 1.5;
+      ctx.moveTo(headX + 2.5, headY - 2.5);
+      ctx.lineTo(headX - 6.5, headY - 2.5);
+      // Nose bridge
+      ctx.moveTo(headX + 9, headY - 2.5);
+      ctx.lineTo(headX + 11.5, headY - 2.5);
       ctx.stroke();
-
-      // Bold Forward Visor Brim
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(6, -29 + runBounce, 7, 3.5);
-
-      // Gold "730" Pin Badge on Cap Crown
-      ctx.fillStyle = '#fbbf24';
-      ctx.fillRect(0, -35 + runBounce, 5, 3.5);
-      ctx.font = '900 6px monospace';
-      ctx.fillStyle = '#0f172a';
-      ctx.textAlign = 'center';
-      ctx.fillText('730', 2.5, -32 + runBounce);
 
       // 5. Arms & Stylized Side-Profile Weapons
       const isRepairing = s.state === 'REPAIRING';
