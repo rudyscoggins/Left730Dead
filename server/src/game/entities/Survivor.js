@@ -76,6 +76,87 @@ export const BARRICADE_DEFENSE_SPOTS = {
   door_main: { x: 12.5, y: 14.5 }
 };
 
+// 730 Society Human Customization Options
+export const HAIR_COLORS = [
+  '#dc2626', // Vibrant Red
+  '#b45309', // Auburn
+  '#78350f', // Brunette
+  '#1c1917', // Dark/Black
+  '#fbbf24', // Blonde
+  '#94a3b8'  // Silver/Grey
+];
+export const HAIR_STYLES = ['short', 'fade', 'mohawk', 'messy', 'afro', 'bald'];
+export const FACIAL_HAIR = ['full_beard', 'goatee', 'mustache', 'stubble', 'clean'];
+export const EYEWEAR = ['none', 'glasses', 'sunglasses', 'goggles'];
+export const HEADWEAR = ['none', 'cap_730', 'beanie', 'beret', 'bandana'];
+export const OUTFITS = ['leather_jacket', 'flannel_vest', 'camo_tactical', 'heavy_armor', 'hoodie'];
+export const SKIN_TONES = ['#fde68a', '#fcd34d', '#fbbf24', '#d97706', '#b45309', '#78350f'];
+
+export function generateSurvivorAppearance(name = '', role = 'SURVIVOR', custom = {}) {
+  const isHost = name.toLowerCase().includes('rudy');
+  
+  if (isHost) {
+    return {
+      hairColor: '#1c1917',
+      hairStyle: 'short',
+      facialHair: 'full_beard',
+      eyewear: 'none',
+      headwear: 'cap_730',
+      outfit: 'leather_jacket',
+      skinTone: '#fde68a',
+      ...custom
+    };
+  }
+
+  // Deterministic seed hash from survivor name
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+
+  let hairColor = custom.hairColor || HAIR_COLORS[hash % HAIR_COLORS.length];
+  let hairStyle = custom.hairStyle || HAIR_STYLES[(hash >> 2) % HAIR_STYLES.length];
+  let facialHair = custom.facialHair || FACIAL_HAIR[(hash >> 4) % FACIAL_HAIR.length];
+  let skinTone = custom.skinTone || SKIN_TONES[(hash >> 6) % SKIN_TONES.length];
+
+  // Thematic role defaults with hashed variety
+  let headwear = custom.headwear || 'none';
+  let eyewear = custom.eyewear || 'none';
+  let outfit = custom.outfit || 'leather_jacket';
+
+  if (role === 'CARPENTER') {
+    headwear = 'goggles';
+    outfit = 'flannel_vest';
+  } else if (role === 'SENTINEL') {
+    eyewear = (hash % 2 === 0) ? 'glasses' : 'sunglasses';
+    outfit = 'camo_tactical';
+    headwear = (hash % 3 === 0) ? 'beret' : 'none';
+  } else if (role === 'SLAYER') {
+    headwear = 'bandana';
+    outfit = 'heavy_armor';
+    if (!custom.hairColor) hairColor = '#dc2626'; // Often red/flaming
+  } else if (role === 'SCAVENGER') {
+    eyewear = 'sunglasses';
+    outfit = 'hoodie';
+    headwear = (hash % 2 === 0) ? 'beanie' : 'none';
+  } else {
+    headwear = HEADWEAR[(hash >> 8) % HEADWEAR.length];
+    eyewear = EYEWEAR[(hash >> 10) % EYEWEAR.length];
+    outfit = OUTFITS[(hash >> 12) % OUTFITS.length];
+  }
+
+  return {
+    hairColor,
+    hairStyle,
+    facialHair,
+    eyewear,
+    headwear,
+    outfit,
+    skinTone,
+    ...custom
+  };
+}
+
 export class Survivor {
   constructor(config = {}) {
     this.id = config.id || `survivor_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
@@ -88,8 +169,12 @@ export class Survivor {
     this.role = config.role || SURVIVOR_ROLES[Math.floor(Math.random() * SURVIVOR_ROLES.length)];
     this.guardStation = config.guardStation || GUARD_STATIONS[Math.floor(Math.random() * GUARD_STATIONS.length)];
 
+    // 730 Society Appearance Attributes
+    this.appearance = generateSurvivorAppearance(this.name, this.role, config.appearance || {});
+
     this.x = config.x !== undefined ? config.x : 10.0;
     this.y = config.y !== undefined ? config.y : 10.0;
+    this.facingDir = 1; // 1 = right, -1 = left
     this.maxHp = 150;
     this.hp = this.maxHp;
     this.baseSpeed = 2.8; // tiles / sec
@@ -605,6 +690,7 @@ export class Survivor {
       vx = (vx / currentSpeed) * speed;
       vy = (vy / currentSpeed) * speed;
       this.aimAngle = Math.atan2(vy, vx);
+      this.facingDir = Math.cos(this.aimAngle) >= 0 ? 1 : -1;
     }
 
     const nextX = this.x + vx * dt;
@@ -628,6 +714,8 @@ export class Survivor {
       avatarUrl: this.avatarUrl,
       color: this.color,
       role: this.role,
+      appearance: this.appearance,
+      facingDir: this.facingDir || (Math.cos(this.aimAngle || 0) >= 0 ? 1 : -1),
       guardStation: this.guardStation?.name || 'Central Hall',
       x: Math.round(this.x * 100) / 100,
       y: Math.round(this.y * 100) / 100,

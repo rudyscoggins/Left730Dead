@@ -51,6 +51,7 @@ export class Zombie {
 
     this.state = 'SEEKING_ENTRY';
     this.facingAngle = 0.0;
+    this.facingDir = 1; // 1 = right, -1 = left
     this.targetBarricadeId = null;
     this.targetSurvivorId = null;
     
@@ -261,6 +262,7 @@ export class Zombie {
     const step = this.speed * dt;
     if (dist > 0.05) {
       this.facingAngle = Math.atan2(dy, dx);
+      this.facingDir = Math.cos(this.facingAngle) >= 0 ? 1 : -1;
     }
     if (dist <= step || dist < 0.15) {
       this.x = targetNode.x;
@@ -282,6 +284,7 @@ export class Zombie {
 
     if (dist > 0.05) {
       this.facingAngle = Math.atan2(dy, dx);
+      this.facingDir = Math.cos(this.facingAngle) >= 0 ? 1 : -1;
       const step = Math.min(dist, this.speed * dt);
       const nextX = this.x + (dx / dist) * step;
       const nextY = this.y + (dy / dist) * step;
@@ -304,6 +307,7 @@ export class Zombie {
       x: Math.round(this.x * 100) / 100,
       y: Math.round(this.y * 100) / 100,
       facingAngle: Math.round(this.facingAngle * 100) / 100,
+      facingDir: this.facingDir || (Math.cos(this.facingAngle || 0) >= 0 ? 1 : -1),
       hp: Math.round(this.hp * 10) / 10,
       maxHp: this.maxHp,
       speed: this.speed,
