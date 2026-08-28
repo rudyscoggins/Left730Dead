@@ -681,7 +681,7 @@ export class GameRenderer {
 
       if (isBrute) {
         // ==========================================
-        // 🧟 GIANT BRUTE (Upright Hulking Monster)
+        // 🧟 CHIBI GIANT BRUTE (Big-Headed Tank)
         // ==========================================
         const bStride = Math.sin(now * 0.012 + z.id.length);
         const bBounce = -Math.abs(Math.sin(now * 0.012)) * 3;
@@ -689,52 +689,51 @@ export class GameRenderer {
         // Shadow under feet
         ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
         ctx.beginPath();
-        ctx.ellipse(0, 0, 16, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 16, 5.5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Thick Stomping Boots
+        // Chunky Stomping Boots
         ctx.fillStyle = '#0f172a';
-        ctx.fillRect(-8 - bStride * 4, -8, 7, 8); // Back boot
-        ctx.fillRect(2 + bStride * 4, -8, 7, 8);  // Front boot
+        ctx.fillRect(-8 - bStride * 4, -7, 7, 7); // Back boot
+        ctx.fillRect(2 + bStride * 4, -7, 7, 7);  // Front boot
 
-        // Muscular Tattered Legs
+        // Compact Muscular Legs
         ctx.fillStyle = '#1e3a5f';
-        ctx.fillRect(-7 - bStride * 4, -18, 6, 11);
-        ctx.fillRect(3 + bStride * 4, -18, 6, 11);
+        ctx.fillRect(-7 - bStride * 4, -15, 6, 9);
+        ctx.fillRect(3 + bStride * 4, -15, 6, 9);
 
-        // Huge Muscular Torso (Torn Red Vest)
+        // Broad Torso (Torn Red Vest)
         ctx.fillStyle = '#7f1d1d';
-        ctx.fillRect(-9, -32 + bBounce, 18, 15);
+        ctx.fillRect(-9, -26 + bBounce, 18, 12);
         ctx.strokeStyle = '#450a0a';
         ctx.lineWidth = 1.5;
-        ctx.strokeRect(-9, -32 + bBounce, 18, 15);
-
-        // Exposed Muscular Scarred Chest
-        ctx.fillStyle = '#15803d';
-        ctx.fillRect(-2, -30 + bBounce, 8, 12);
+        ctx.strokeRect(-9, -26 + bBounce, 18, 12);
 
         // Massive Outstretched Arms with Bloody Knuckles
         ctx.fillStyle = '#166534';
-        ctx.fillRect(4, -28 + bBounce, 14, 7); // Extended forward
+        ctx.fillRect(4, -23 + bBounce, 13, 6);
         ctx.fillStyle = '#991b1b'; // Bloody knuckle fist
-        ctx.fillRect(16, -29 + bBounce, 7, 9);
+        ctx.fillRect(15, -24 + bBounce, 7, 8);
 
-        // Decayed Monster Head
+        // Big Chibi Monster Head
         ctx.fillStyle = '#15803d';
         ctx.beginPath();
-        ctx.arc(3, -37 + bBounce, 8, 0, Math.PI * 2);
+        ctx.arc(3, -33 + bBounce, 11, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#052e16';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
 
-        // Glowing Crimson Eyes
+        // Glowing Crimson Eyes (Big scowling eye)
         ctx.fillStyle = '#ef4444';
         ctx.shadowColor = '#ef4444';
         ctx.shadowBlur = 8;
-        ctx.fillRect(6, -39 + bBounce, 4, 3);
+        ctx.fillRect(6, -36 + bBounce, 5, 3.5);
         ctx.shadowBlur = 0;
 
       } else {
         // ==========================================
-        // 🧟 SHAMBLER (Upright Classic Arcade Zombie)
+        // 🧟 CHIBI SHAMBLER (Big-Headed Arcade Undead)
         // ==========================================
         const zStride = Math.sin(now * 0.015 + z.id.length * 1.5);
         const zBounce = -Math.abs(Math.sin(now * 0.015)) * 2;
@@ -742,63 +741,64 @@ export class GameRenderer {
         // Shadow under feet
         ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
         ctx.beginPath();
-        ctx.ellipse(0, 0, 10, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 11, 4, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Shambling Dragged Legs in Torn Blue Jeans
-        ctx.fillStyle = '#1e3a5f';
-        ctx.fillRect(-4 - zStride * 3.5, -12, 3.5, 12); // Back dragging leg
-        ctx.fillRect(1 + zStride * 3.5, -12, 3.5, 12);  // Front stepping leg
+        // Shambling Dragged Chibi Legs
+        ctx.fillStyle = '#1e3a5f'; // Torn blue jeans
+        ctx.fillRect(-4 - zStride * 3, -10, 4, 10);
+        ctx.fillRect(1 + zStride * 3, -10, 4, 10);
         // Shoes
         ctx.fillStyle = '#0f172a';
-        ctx.fillRect(-4 - zStride * 3.5, -2, 4.5, 2.5);
-        ctx.fillRect(1 + zStride * 3.5, -2, 4.5, 2.5);
+        ctx.fillRect(-4.5 - zStride * 3, -2, 5, 2.5);
+        ctx.fillRect(1 + zStride * 3, -2, 5, 2.5);
 
-        // Hunched Torso (Torn Greenish/Grey Ripped Shirt)
+        // Compact Torso (Torn Greenish Shirt)
         ctx.fillStyle = '#0f291e';
-        ctx.fillRect(-5, -23 + zBounce, 10, 12);
+        ctx.fillRect(-5, -19 + zBounce, 10, 10);
         ctx.strokeStyle = '#052e16';
         ctx.lineWidth = 1;
-        ctx.strokeRect(-5, -23 + zBounce, 10, 12);
-
-        // Blood rips across chest
-        ctx.fillStyle = '#991b1b';
-        ctx.fillRect(0, -21 + zBounce, 4, 3);
+        ctx.strokeRect(-5, -19 + zBounce, 10, 10);
 
         // Forward Outstretched Reaching Zombie Arms
         ctx.fillStyle = '#22c55e';
-        ctx.fillRect(1, -20 + zBounce, 12, 3.5); // Reaching arm
-        // Bloody Claw Fingers
-        ctx.fillStyle = '#7f1d1d';
-        ctx.fillRect(11, -20.5 + zBounce, 3.5, 4.5);
+        ctx.fillRect(2, -17 + zBounce, 11, 3.5);
+        ctx.fillStyle = '#7f1d1d'; // Bloody claws
+        ctx.fillRect(11, -17.5 + zBounce, 3.5, 4.5);
 
-        // Rotting Head & Open Sagging Jaw
+        // Big Chibi Rotting Skull
         ctx.fillStyle = '#22c55e';
         ctx.beginPath();
-        ctx.arc(2, -28 + zBounce, 5.5, 0, Math.PI * 2);
+        ctx.arc(2, -26 + zBounce, 9.5, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#14532d';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
 
         // Open drooping jaw & teeth
         ctx.fillStyle = '#052e16';
-        ctx.fillRect(4, -26 + zBounce, 3, 2.5);
-        ctx.fillStyle = '#fef08a'; // Yellow tooth
-        ctx.fillRect(4.5, -26 + zBounce, 1, 1);
+        ctx.fillRect(5, -23 + zBounce, 4.5, 3.5);
+        ctx.fillStyle = '#fef08a'; // Yellow crooked teeth
+        ctx.fillRect(5.5, -23 + zBounce, 1.5, 1.5);
+        ctx.fillRect(7.5, -21.5 + zBounce, 1.5, 1.5);
 
-        // Sunken Eye & Glowing Yellow Pupil
+        // Big Sunken Eye Socket & Glowing Pupil
         ctx.fillStyle = '#052e16';
-        ctx.fillRect(4, -30 + zBounce, 2.5, 2.5);
+        ctx.beginPath();
+        ctx.arc(5, -28 + zBounce, 3.5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = '#fef08a';
-        ctx.fillRect(5, -29.5 + zBounce, 1.5, 1.5);
+        ctx.fillRect(5, -28.5 + zBounce, 2, 2);
       }
 
       ctx.restore();
 
-      // Floating Health Bar above upright head
+      // Floating Health Bar above upright chibi head
       const hpRatio = z.hp / z.maxHp;
       const barW = (isBrute ? 28 : 20);
       const barH = 3.5;
       const barX = zx - barW / 2;
-      const barY = zy - (isBrute ? 48 : 36);
+      const barY = zy - (isBrute ? 48 : 39);
 
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(barX, barY, barW, barH);
@@ -808,7 +808,7 @@ export class GameRenderer {
   }
 
   // -------------------------------------------------------------
-  // 6. 730 SOCIETY SURVIVOR CHARACTERS (Side-View Upright Sprites)
+  // 6. 730 SOCIETY SURVIVOR CHARACTERS (Chibi Side-View Sprites)
   // -------------------------------------------------------------
 
   renderSurvivors(ctx, survivors, ts, now) {
@@ -820,7 +820,6 @@ export class GameRenderer {
       const role = s.role || 'SURVIVOR';
       const isHost = s.name.toLowerCase().includes('rudy');
       const facing = (s.facingDir !== undefined) ? s.facingDir : (Math.cos(s.aimAngle || 0) >= 0 ? 1 : -1);
-      const app = s.appearance || {};
 
       if (!s.isAlive) {
         // Downed Fallen View
@@ -849,7 +848,7 @@ export class GameRenderer {
       }
 
       // =========================================================
-      // 🧑 UPRIGHT SIDE-VIEW 730 SOCIETY SURVIVOR SPRITE
+      // 🧑 CHIBI 730 SOCIETY SURVIVOR SPRITE (Big Customizable Face)
       // =========================================================
       ctx.save();
       ctx.translate(sx, sy);
@@ -865,110 +864,131 @@ export class GameRenderer {
       ctx.ellipse(0, 0, 11, 4.5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. Animated Running / Standing Legs
+      // 2. Animated Chibi Running Legs (Chunky & Cute)
       const legAngle = stride * 5;
       // Back Leg
-      ctx.fillStyle = '#1e293b'; // Denim / combat dark
-      ctx.fillRect(-3.5 - legAngle, -13, 3.5, 13);
-      ctx.fillStyle = '#0f172a'; // Shoe
-      ctx.fillRect(-4.5 - legAngle, -2.5, 5, 3);
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(-3.5 - legAngle, -10, 3.5, 10);
+      ctx.fillStyle = '#0f172a'; // Chunky Shoe
+      ctx.fillRect(-4.5 - legAngle, -2.5, 5.5, 3);
 
       // Front Leg
       ctx.fillStyle = '#334155';
-      ctx.fillRect(1 + legAngle, -13, 3.5, 13);
-      ctx.fillStyle = '#0f172a'; // Shoe
-      ctx.fillRect(0.5 + legAngle, -2.5, 5, 3);
+      ctx.fillRect(1 + legAngle, -10, 3.5, 10);
+      ctx.fillStyle = '#0f172a'; // Chunky Shoe
+      ctx.fillRect(0.5 + legAngle, -2.5, 5.5, 3);
 
-      // 3. Uniform Base 730 Society Tactical Outfit
+      // 3. Compact Torso & 730 Society Tactical Uniform
       const playerColor = s.color || '#3b82f6';
       
-      // Torso Base (Dark Tactical Vest / Jacket accented by Player Color)
+      // Torso Base
       ctx.fillStyle = '#1e293b';
-      ctx.fillRect(-5, -24 + runBounce, 10, 12);
+      ctx.fillRect(-5, -19 + runBounce, 10, 10);
       ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 1;
-      ctx.strokeRect(-5, -24 + runBounce, 10, 12);
+      ctx.strokeRect(-5, -19 + runBounce, 10, 10);
 
-      // Player Identity Color Accent Band (Chest Stripe)
+      // Player Identity Color Accent Band
       ctx.fillStyle = playerColor;
-      ctx.fillRect(-5, -20 + runBounce, 10, 3.5);
+      ctx.fillRect(-5, -16 + runBounce, 10, 3.5);
 
       // Tactical Shoulder Strap & Holster
       ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(-4, -24 + runBounce);
-      ctx.lineTo(3, -12 + runBounce);
+      ctx.moveTo(-4, -19 + runBounce);
+      ctx.lineTo(3, -9 + runBounce);
       ctx.stroke();
 
-      // 4. Uniform Human Head & 730 Society Ballcap
+      // 4. PROMINENT CHIBI HEAD & CUSTOMIZABLE FACE (Big Expressive Face)
       const skinTone = '#fde68a';
-      const hairColor = '#1c1917';
+      const headRadius = 10.5;
 
-      // Head Base
+      // Big Rounded Chibi Head
       ctx.fillStyle = skinTone;
       ctx.beginPath();
-      ctx.arc(1, -29 + runBounce, 6, 0, Math.PI * 2);
+      ctx.arc(2, -26 + runBounce, headRadius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = '#b45309';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
 
-      // Profile Nose
+      // Cute Profile Nose
       ctx.fillStyle = skinTone;
-      ctx.fillRect(6, -29.5 + runBounce, 2, 2);
+      ctx.fillRect(10, -26.5 + runBounce, 2.5, 2.5);
 
-      // Eye
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(4, -30.5 + runBounce, 1.5, 1.5);
-
-      // Clean Trimmed Jawline / Stubble
-      ctx.fillStyle = 'rgba(28, 25, 23, 0.4)';
-      ctx.fillRect(1, -26 + runBounce, 5, 2);
-
-      // Standard 730 Society Ballcap
+      // Big Expressive Chibi Eye
       ctx.fillStyle = '#0f172a';
       ctx.beginPath();
-      ctx.arc(1, -30 + runBounce, 6.2, Math.PI * 0.7, Math.PI * 2.3);
+      ctx.ellipse(6.5, -27.5 + runBounce, 2.8, 3.8, 0, 0, Math.PI * 2);
       ctx.fill();
-      // Cap Visor forward
-      ctx.fillRect(4, -31 + runBounce, 5, 2.5);
-      // Gold "730" crown badge
+
+      // Eye Specular Highlight (Cute Anime/Arcade Glisten)
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(7.5, -29 + runBounce, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Trimmed Beard / Stubble Contour along jawline
+      ctx.fillStyle = 'rgba(28, 25, 23, 0.45)';
+      ctx.fillRect(2, -20 + runBounce, 8, 3.5);
+
+      // Signature 730 Society Ballcap (Covering top half of big head)
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(2, -27 + runBounce, 11, Math.PI * 0.7, Math.PI * 2.3);
+      ctx.fill();
+      ctx.strokeStyle = '#020617';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Bold Forward Visor Brim
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(6, -29 + runBounce, 7, 3.5);
+
+      // Gold "730" Pin Badge on Cap Crown
       ctx.fillStyle = '#fbbf24';
-      ctx.fillRect(-1, -34 + runBounce, 3, 2);
+      ctx.fillRect(0, -35 + runBounce, 5, 3.5);
+      ctx.font = '900 6px monospace';
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.fillText('730', 2.5, -32 + runBounce);
 
-      // 5. Arms & Side-Profile Weapon Handling
+      // 5. Arms & Stylized Side-Profile Weapons
       const isRepairing = s.state === 'REPAIRING';
-      const hammerSwing = isRepairing ? Math.sin(now * 0.02) * 6 : 0;
+      const hammerSwing = isRepairing ? Math.sin(now * 0.02) * 8 : 0;
 
       if (isRepairing) {
-        // Repairing: Swinging Hammer
+        // Swinging Chibi Hammer
         ctx.fillStyle = skinTone;
-        ctx.fillRect(2, -21 + runBounce + hammerSwing, 7, 3);
+        ctx.fillRect(3, -16 + runBounce + hammerSwing, 8, 3.5);
         ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(8, -25 + runBounce + hammerSwing, 4, 8); // Hammer head
+        ctx.fillRect(10, -22 + runBounce + hammerSwing, 5, 10);
       } else {
         // Arms Holding Firearms
         ctx.fillStyle = skinTone;
-        ctx.fillRect(1, -20 + runBounce, 7, 3); // Back arm
-        ctx.fillRect(4, -18 + runBounce, 6, 3); // Front arm
+        ctx.fillRect(2, -15 + runBounce, 7, 3.5);
+        ctx.fillRect(5, -13 + runBounce, 6, 3.5);
 
-        // Firearm Models
+        // Stylized Firearm Models
         if (role === 'SLAYER' || isHost) {
-          // Combat Shotgun (Dark metal + wooden pump)
+          // Chunky Combat Shotgun
           ctx.fillStyle = '#0f172a';
-          ctx.fillRect(4, -19 + runBounce, 16, 4); // Barrel
+          ctx.fillRect(5, -15 + runBounce, 17, 4.5);
           ctx.fillStyle = '#78350f';
-          ctx.fillRect(8, -17 + runBounce, 4, 3); // Pump
+          ctx.fillRect(9, -13 + runBounce, 5, 3.5);
           ctx.fillStyle = '#94a3b8';
-          ctx.fillRect(18, -18.5 + runBounce, 3, 3); // Muzzle
+          ctx.fillRect(20, -14.5 + runBounce, 3.5, 3.5);
         } else if (role === 'SENTINEL') {
-          // Marksman Scoped Rifle (Long barrel with optical scope)
+          // Long Scoped Marksman Rifle
           ctx.fillStyle = '#0f172a';
-          ctx.fillRect(4, -18.5 + runBounce, 19, 3);
+          ctx.fillRect(5, -14.5 + runBounce, 20, 3.5);
           ctx.fillStyle = '#38bdf8';
-          ctx.fillRect(9, -21.5 + runBounce, 5, 2.5); // Optical Scope
+          ctx.fillRect(10, -18 + runBounce, 6, 3); // Scope
         } else {
-          // Pistol / Carbine
+          // Tactical Carbine / Pistol
           ctx.fillStyle = '#0f172a';
-          ctx.fillRect(4, -18.5 + runBounce, 11, 3);
+          ctx.fillRect(5, -14.5 + runBounce, 12, 3.5);
         }
       }
 
@@ -980,7 +1000,7 @@ export class GameRenderer {
       const barW = ts * 1.1;
       const barH = 5;
       const barX = sx - barW / 2;
-      const barY = sy - 44; // Above upright head
+      const barY = sy - 42; // Above chibi head
 
       ctx.font = 'bold 10px sans-serif';
       ctx.fillStyle = '#ffffff';
