@@ -1218,5 +1218,29 @@ export class GameRenderer {
       ctx.textAlign = 'center';
       ctx.fillText(`🛡️ INTERMISSION: ${nextTime} IN ${snapshot.intermissionTimer}s`, this.canvas.width / 2, by + 22);
     }
+
+    // 10. HOST-DRIVEN PERK SELECTION PAUSE BANNER
+    const isPaused = snapshot.isPaused || (snapshot.progression?.isPaused) || (snapshot.progression?.perkMode === 'DRIVEN' && snapshot.progression?.pendingPerkSelection);
+    if (isPaused) {
+      // Soft dark tint
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.65)';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+      const bannerW = 420;
+      const bannerH = 48;
+      const bx = (this.canvas.width - bannerW) / 2;
+      const by = 24;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.96)';
+      ctx.fillRect(bx, by, bannerW, bannerH);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx, by, bannerW, bannerH);
+
+      ctx.font = '900 14px system-ui, sans-serif';
+      ctx.fillStyle = '#fbbf24';
+      ctx.textAlign = 'center';
+      ctx.fillText('⏸️ GAME PAUSED — SELECT A PERK TO RESUME', this.canvas.width / 2, by + 29);
+    }
   }
 }

@@ -301,6 +301,15 @@ class GameClient {
         b.innerHTML = `<span>${perk.icon}</span> <span>${perk.name}</span>`;
         this.perksContainer.appendChild(b);
       }
+
+      // Sync Perk Modal with Host-Driven Pause State
+      if (p.perkMode === 'DRIVEN' && p.pendingPerkSelection?.offeredPerks) {
+        if (!this.perkModal.classList.contains('active')) {
+          this.showPerkModal(p.pendingPerkSelection.offeredPerks);
+        }
+      } else if (!p.pendingPerkSelection && this.perkModal.classList.contains('active')) {
+        this.hidePerkModal();
+      }
     }
 
     // Survivor Squad List & Command Target Select Options

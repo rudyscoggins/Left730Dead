@@ -161,6 +161,10 @@ export class ProgressionSystem {
     };
   }
 
+  isPausedForPerk() {
+    return !!(this.pendingPerkSelection && this.perkMode === 'DRIVEN');
+  }
+
   toJSON() {
     return {
       level: this.level,
@@ -170,6 +174,7 @@ export class ProgressionSystem {
       activePerks: this.activePerks,
       pendingPerkSelection: this.pendingPerkSelection,
       perkMode: this.perkMode,
+      isPaused: this.isPausedForPerk(),
       modifiers: this.modifiers
     };
   }

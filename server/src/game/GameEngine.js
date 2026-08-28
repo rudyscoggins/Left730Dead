@@ -517,6 +517,11 @@ export class GameEngine {
     // 0. Progression Timer Tick (Autopilot perk picking)
     this.progression.tick();
 
+    // In Host-Driven mode, freeze all action while host chooses a perk!
+    if (this.progression.isPausedForPerk()) {
+      return;
+    }
+
     // 1. Check for Victory Autopilot Countdown
     if (this.waveState === 'VICTORY') {
       this.victoryTimer -= dt;
@@ -681,6 +686,7 @@ export class GameEngine {
       zombies: this.zombies.map(z => z.toJSON()),
       barricades: this.barricades.map(b => b.toJSON()),
       loot: this.lootDrops,
+      isPaused: this.progression.isPausedForPerk(),
       progression: this.progression.toJSON(),
       combatEvents: this.combatEvents
     };
