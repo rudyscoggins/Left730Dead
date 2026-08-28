@@ -879,53 +879,31 @@ export class GameRenderer {
       ctx.fillStyle = '#0f172a'; // Shoe
       ctx.fillRect(0.5 + legAngle, -2.5, 5, 3);
 
-      // 3. Torso & Outfits (Custom Clothing Styles)
-      let outfitColor = '#1c1917'; // Default Leather Jacket
-      if (app.outfit === 'flannel_vest' || role === 'CARPENTER') outfitColor = '#ea580c'; // Safety Vest
-      else if (app.outfit === 'camo_tactical' || role === 'SENTINEL') outfitColor = '#15803d'; // Olive Camo
-      else if (app.outfit === 'heavy_armor' || role === 'SLAYER') outfitColor = '#0f172a'; // Heavy Armor
-      else if (app.outfit === 'hoodie' || role === 'SCAVENGER') outfitColor = '#475569'; // Urban Hoodie
-
-      // Torso Base
-      ctx.fillStyle = outfitColor;
+      // 3. Uniform Base 730 Society Tactical Outfit
+      const playerColor = s.color || '#3b82f6';
+      
+      // Torso Base (Dark Tactical Vest / Jacket accented by Player Color)
+      ctx.fillStyle = '#1e293b';
       ctx.fillRect(-5, -24 + runBounce, 10, 12);
       ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 1;
       ctx.strokeRect(-5, -24 + runBounce, 10, 12);
 
-      // Role Gear Accents (Flannel pattern, Ammo belt, Safety stripe, Backpack)
-      if (role === 'CARPENTER' || app.outfit === 'flannel_vest') {
-        // High-vis reflective stripe
-        ctx.fillStyle = '#cbd5e1';
-        ctx.fillRect(-5, -18 + runBounce, 10, 2);
-        // Toolbelt hammer on hip
-        ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(-7, -13 + runBounce, 3, 5);
-      } else if (role === 'SLAYER' || app.outfit === 'heavy_armor') {
-        // Red diagonal ammo bandolier
-        ctx.strokeStyle = '#dc2626';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-5, -23 + runBounce);
-        ctx.lineTo(4, -13 + runBounce);
-        ctx.stroke();
-      } else if (role === 'SCAVENGER' || app.outfit === 'hoodie') {
-        // Survival Backpack on back
-        ctx.fillStyle = '#78350f';
-        ctx.fillRect(-9, -23 + runBounce, 4, 9);
-      } else if (isHost) {
-        // Rudy Leather Jacket Zipper
-        ctx.strokeStyle = '#94a3b8';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, -24 + runBounce);
-        ctx.lineTo(0, -13 + runBounce);
-        ctx.stroke();
-      }
+      // Player Identity Color Accent Band (Chest Stripe)
+      ctx.fillStyle = playerColor;
+      ctx.fillRect(-5, -20 + runBounce, 10, 3.5);
 
-      // 4. Human Head & Face Customization
-      const skinTone = app.skinTone || '#fde68a';
-      const hairColor = app.hairColor || (isHost ? '#1c1917' : '#78350f');
+      // Tactical Shoulder Strap & Holster
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-4, -24 + runBounce);
+      ctx.lineTo(3, -12 + runBounce);
+      ctx.stroke();
+
+      // 4. Uniform Human Head & 730 Society Ballcap
+      const skinTone = '#fde68a';
+      const hairColor = '#1c1917';
 
       // Head Base
       ctx.fillStyle = skinTone;
@@ -941,83 +919,20 @@ export class GameRenderer {
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(4, -30.5 + runBounce, 1.5, 1.5);
 
-      // Eyewear Customization (Glasses / Sunglasses / Goggles)
-      if (app.eyewear === 'glasses' || (role === 'SENTINEL' && app.eyewear !== 'none')) {
-        // Wireframe glasses
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(3, -31.5 + runBounce, 3, 3);
-        ctx.beginPath();
-        ctx.moveTo(3, -30 + runBounce);
-        ctx.lineTo(-2, -30 + runBounce);
-        ctx.stroke();
-      } else if (app.eyewear === 'sunglasses' || role === 'SCAVENGER') {
-        // Sleek black sunglasses
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(2.5, -31.5 + runBounce, 5, 3);
-      }
+      // Clean Trimmed Jawline / Stubble
+      ctx.fillStyle = 'rgba(28, 25, 23, 0.4)';
+      ctx.fillRect(1, -26 + runBounce, 5, 2);
 
-      // Facial Hair Customization (Full Beard / Mustache / Goatee)
-      if (isHost || app.facialHair === 'full_beard') {
-        // Full trimmed beard along jaw & chin
-        ctx.fillStyle = hairColor;
-        ctx.beginPath();
-        ctx.moveTo(-1, -28 + runBounce);
-        ctx.lineTo(6, -28 + runBounce);
-        ctx.lineTo(7, -25 + runBounce);
-        ctx.lineTo(2, -23 + runBounce);
-        ctx.lineTo(-2, -25 + runBounce);
-        ctx.closePath();
-        ctx.fill();
-      } else if (app.facialHair === 'goatee') {
-        ctx.fillStyle = hairColor;
-        ctx.fillRect(4, -26 + runBounce, 3, 2.5);
-      } else if (app.facialHair === 'mustache') {
-        ctx.fillStyle = hairColor;
-        ctx.fillRect(4.5, -28 + runBounce, 3, 1.5);
-      }
-
-      // Hair Styles
-      if (app.hairStyle === 'mohawk') {
-        ctx.fillStyle = hairColor;
-        ctx.fillRect(-1, -38 + runBounce, 4, 5); // Spiked crest
-      } else if (app.hairStyle !== 'bald') {
-        ctx.fillStyle = hairColor;
-        ctx.beginPath();
-        ctx.arc(0.5, -30 + runBounce, 6, Math.PI * 0.8, Math.PI * 2.2);
-        ctx.fill();
-      }
-
-      // Headwear Customization (730 Cap / Beanie / Beret / Bandana / Goggles)
-      if (isHost || app.headwear === 'cap_730') {
-        // Rudy's "730" Ballcap
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.arc(1, -30 + runBounce, 6.2, Math.PI * 0.7, Math.PI * 2.3);
-        ctx.fill();
-        // Cap Visor forward
-        ctx.fillRect(4, -31 + runBounce, 5, 2.5);
-        // Gold "730" crown badge
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillRect(-1, -34 + runBounce, 3, 2);
-      } else if (role === 'CARPENTER' || app.headwear === 'goggles') {
-        // Welding Goggles on forehead
-        ctx.fillStyle = '#ea580c';
-        ctx.fillRect(1, -34 + runBounce, 5, 3);
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(1, -34 + runBounce, 5, 3);
-      } else if (role === 'SLAYER' || app.headwear === 'bandana') {
-        // Red Bandana
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(-3, -33 + runBounce, 9, 2.5);
-      } else if (app.headwear === 'beanie') {
-        // Knit Beanie
-        ctx.fillStyle = '#334155';
-        ctx.beginPath();
-        ctx.arc(1, -31 + runBounce, 6.5, Math.PI * 0.8, Math.PI * 2.2);
-        ctx.fill();
-      }
+      // Standard 730 Society Ballcap
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(1, -30 + runBounce, 6.2, Math.PI * 0.7, Math.PI * 2.3);
+      ctx.fill();
+      // Cap Visor forward
+      ctx.fillRect(4, -31 + runBounce, 5, 2.5);
+      // Gold "730" crown badge
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(-1, -34 + runBounce, 3, 2);
 
       // 5. Arms & Side-Profile Weapon Handling
       const isRepairing = s.state === 'REPAIRING';
