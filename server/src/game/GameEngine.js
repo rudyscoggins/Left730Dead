@@ -449,7 +449,7 @@ export class GameEngine {
   }
 
   resolveSurvivorCollisions() {
-    const MIN_DISTANCE = 0.90; // Minimum separation between survivors (diameter ~0.90 tiles)
+    const MIN_DISTANCE = 0.75; // Smooth physical separation between survivors allowing doorway passing
     const aliveSurvivors = this.survivors.filter(s => s.isAlive());
     if (aliveSurvivors.length < 2) return;
 

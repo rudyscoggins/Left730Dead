@@ -648,7 +648,7 @@ export class Survivor {
     let dy = targetNode.y - this.y;
     let dist = Math.hypot(dx, dy);
 
-    if (dist < 0.25) {
+    if (dist < 0.28) {
       this.pathIndex++;
       if (this.pathIndex >= this.path.length) {
         this.path = [];
@@ -669,14 +669,14 @@ export class Survivor {
       const toOtherY = other.y - this.y;
       const otherDist = Math.hypot(toOtherX, toOtherY);
 
-      if (otherDist > 0.02 && otherDist < 1.1) {
+      if (otherDist > 0.02 && otherDist < 0.95) {
         // Dot product to check if other survivor is in front of travel
         const dot = (vx * toOtherX + vy * toOtherY) / (speed * otherDist);
         if (dot > 0.25) {
           // Tangent (lateral) steering force to walk around
           const perpX = -toOtherY / otherDist;
           const perpY = toOtherX / otherDist;
-          const steerIntensity = (1.1 - otherDist) * 1.6;
+          const steerIntensity = (0.95 - otherDist) * 1.4;
 
           vx += perpX * speed * steerIntensity;
           vy += perpY * speed * steerIntensity;
@@ -696,14 +696,35 @@ export class Survivor {
     const nextX = this.x + vx * dt;
     const nextY = this.y + vy * dt;
 
-    if (engine.map.isPositionWalkable(nextX, nextY, 0.38)) {
+    let moved = false;
+    if (engine.map.isPositionWalkable(nextX, nextY, 0.35)) {
       this.x = nextX;
       this.y = nextY;
-    } else if (engine.map.isPositionWalkable(nextX, this.y, 0.38)) {
+      moved = true;
+    } else if (engine.map.isPositionWalkable(nextX, this.y, 0.35)) {
       this.x = nextX;
-    } else if (engine.map.isPositionWalkable(this.x, nextY, 0.38)) {
+      moved = true;
+    } else if (engine.map.isPositionWalkable(this.x, nextY, 0.35)) {
       this.y = nextY;
+      moved = true;
     }
+
+    // Anti-stuck watchdog
+    if (!moved || Math.hypot(this.x - (this.lastMoveX ?? this.x), this.y - (this.lastMoveY ?? this.y)) < 0.01) {
+      this.stuckTicks = (this.stuckTicks || 0) + 1;
+      if (this.stuckTicks > 12) {
+        // Skip current stuck waypoint to glide around obstacles
+        this.pathIndex++;
+        this.stuckTicks = 0;
+        if (this.pathIndex >= this.path.length) {
+          this.path = [];
+        }
+      }
+    } else {
+      this.stuckTicks = 0;
+    }
+    this.lastMoveX = this.x;
+    this.lastMoveY = this.y;
   }
 
   toJSON() {

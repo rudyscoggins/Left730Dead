@@ -10,7 +10,16 @@ export const ZOMBIE_TYPES = {
   BRUTE: 'brute'
 };
 
-// Ingress entry vectors for each barricade so zombies step fully inside the house
+// Exterior approach points in the walkable outside yard immediately outside each window/door
+const BARRICADE_APPROACH_POINTS = {
+  win_north: { x: 7.5, y: 3.5 },
+  win_south: { x: 7.5, y: 16.5 },
+  win_west: { x: 3.5, y: 9.5 },
+  win_east: { x: 16.5, y: 9.5 },
+  door_main: { x: 12.5, y: 16.5 }
+};
+
+// Interior ingress points past the window/door threshold once breached
 const BARRICADE_INGRESS_POINTS = {
   win_north: { x: 7.5, y: 5.5 },
   win_south: { x: 7.5, y: 14.5 },
@@ -81,6 +90,32 @@ export class Zombie {
 
     this.repathTicks--;
 
+    // Anti-stuck watchdog
+    if (Math.hypot(this.x - (this.lastMoveX ?? this.x), this.y - (this.lastMoveY ?? this.y)) < 0.015) {
+      this.stuckTicks = (this.stuckTicks || 0) + 1;
+      if (this.stuckTicks > 15) {
+        // Force repath and clear stuck state
+        this.path = [];
+        this.pathIndex = 0;
+        this.repathTicks = 0;
+      }
+      if (this.stuckTicks > 30) {
+        // Gently nudge around corner towards map exterior
+        const angle = Math.random() * Math.PI * 2;
+        const testX = this.x + Math.cos(angle) * 0.4;
+        const testY = this.y + Math.sin(angle) * 0.4;
+        if (Pathfinding.isWalkable(testX, testY, engine.map, engine.barricadesMap, true)) {
+          this.x = testX;
+          this.y = testY;
+        }
+        this.stuckTicks = 0;
+      }
+    } else {
+      this.stuckTicks = 0;
+    }
+    this.lastMoveX = this.x;
+    this.lastMoveY = this.y;
+
     const isInside = engine.map.isInsideHouse(this.x, this.y);
 
     // 1. If already inside the house, hunt nearest survivor with A* pathing
@@ -104,7 +139,7 @@ export class Zombie {
     for (const b of engine.barricades) {
       const bx = b.x + 0.5;
       const by = b.y + 0.5;
-      if (!b.isBreached && Math.hypot(this.x - bx, this.y - by) <= 1.35) {
+      if (!b.isBreached && Math.hypot(this.x - bx, this.y - by) <= 1.45) {
         return b;
       }
     }
@@ -225,20 +260,21 @@ export class Zombie {
     if (!target) return;
 
     // Check if close enough to attack intact barricade directly
-    if (!target.isBreached && minDist <= 1.35) {
+    if (!target.isBreached && minDist <= 1.45) {
       this.attackBarricade(target, dt, engine);
       return;
     }
 
-    // If target barricade is breached, aim for the interior ingress tile past the window/door
-    const dest = target.isBreached && BARRICADE_INGRESS_POINTS[target.id] 
-      ? BARRICADE_INGRESS_POINTS[target.id] 
-      : { x: target.x + 0.5, y: target.y + 0.5 };
+    // If target barricade is breached, aim for the interior ingress tile past the window/door.
+    // If intact, aim for the exterior approach tile on the walkable lawn!
+    const dest = target.isBreached
+      ? (BARRICADE_INGRESS_POINTS[target.id] || { x: target.x + 0.5, y: target.y + 0.5 })
+      : (BARRICADE_APPROACH_POINTS[target.id] || { x: target.x + 0.5, y: target.y + 0.5 });
 
     if (this.repathTicks <= 0 || !this.path || this.pathIndex >= this.path.length) {
       this.path = Pathfinding.findPath(this.x, this.y, dest.x, dest.y, engine.map, engine.barricadesMap, true);
       this.pathIndex = 0;
-      this.repathTicks = 20;
+      this.repathTicks = 15;
     }
 
     if (this.path && this.pathIndex < this.path.length) {
