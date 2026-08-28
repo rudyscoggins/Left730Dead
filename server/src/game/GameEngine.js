@@ -449,12 +449,12 @@ export class GameEngine {
   }
 
   resolveSurvivorCollisions() {
-    const MIN_DISTANCE = 0.75; // Smooth physical separation between survivors allowing doorway passing
+    const MIN_DISTANCE = 0.70; // Smooth physical separation between survivors
     const aliveSurvivors = this.survivors.filter(s => s.isAlive());
     if (aliveSurvivors.length < 2) return;
 
-    // Run 3 relaxation passes for clean multi-body separation
-    for (let pass = 0; pass < 3; pass++) {
+    // Run 2 relaxation passes for clean multi-body separation
+    for (let pass = 0; pass < 2; pass++) {
       for (let i = 0; i < aliveSurvivors.length; i++) {
         for (let j = i + 1; j < aliveSurvivors.length; j++) {
           const s1 = aliveSurvivors[i];
@@ -465,7 +465,6 @@ export class GameEngine {
           let dist = Math.hypot(dx, dy);
 
           if (dist < MIN_DISTANCE) {
-            // Handle perfect overlap
             if (dist < 0.001) {
               const angle = ((i + 1) * (Math.PI * 2 / aliveSurvivors.length));
               dx = Math.cos(angle) * 0.05;
@@ -477,31 +476,31 @@ export class GameEngine {
             const nx = dx / dist;
             const ny = dy / dist;
 
-            // Push each survivor by half the overlap
-            const pushX = nx * (overlap * 0.5);
-            const pushY = ny * (overlap * 0.5);
+            // Priority-based separation: Lower ID gets right-of-way, Higher ID yields
+            const s1YieldRatio = s1.id > s2.id ? 0.85 : 0.15;
+            const s2YieldRatio = 1.0 - s1YieldRatio;
 
-            const s1NewX = s1.x + pushX;
-            const s1NewY = s1.y + pushY;
-            const s2NewX = s2.x - pushX;
-            const s2NewY = s2.y - pushY;
+            const s1NewX = s1.x + nx * (overlap * s1YieldRatio);
+            const s1NewY = s1.y + ny * (overlap * s1YieldRatio);
+            const s2NewX = s2.x - nx * (overlap * s2YieldRatio);
+            const s2NewY = s2.y - ny * (overlap * s2YieldRatio);
 
             // Apply push if walkable on map floor
-            if (this.map.isPositionWalkable(s1NewX, s1NewY, 0.36)) {
+            if (this.map.isPositionWalkable(s1NewX, s1NewY, 0.35)) {
               s1.x = s1NewX;
               s1.y = s1NewY;
-            } else if (this.map.isPositionWalkable(s1NewX, s1.y, 0.36)) {
+            } else if (this.map.isPositionWalkable(s1NewX, s1.y, 0.35)) {
               s1.x = s1NewX;
-            } else if (this.map.isPositionWalkable(s1.x, s1NewY, 0.36)) {
+            } else if (this.map.isPositionWalkable(s1.x, s1NewY, 0.35)) {
               s1.y = s1NewY;
             }
 
-            if (this.map.isPositionWalkable(s2NewX, s2NewY, 0.36)) {
+            if (this.map.isPositionWalkable(s2NewX, s2NewY, 0.35)) {
               s2.x = s2NewX;
               s2.y = s2NewY;
-            } else if (this.map.isPositionWalkable(s2NewX, s2.y, 0.36)) {
+            } else if (this.map.isPositionWalkable(s2NewX, s2.y, 0.35)) {
               s2.x = s2NewX;
-            } else if (this.map.isPositionWalkable(s2.x, s2NewY, 0.36)) {
+            } else if (this.map.isPositionWalkable(s2.x, s2NewY, 0.35)) {
               s2.y = s2NewY;
             }
           }

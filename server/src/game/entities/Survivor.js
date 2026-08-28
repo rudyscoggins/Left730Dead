@@ -38,6 +38,14 @@ export const GUARD_STATIONS = [
   { name: 'Central Hall', x: 10.0, y: 10.0 }
 ];
 
+export const ROOM_SECTOR_BARRICADES = {
+  'Living Room': ['win_north', 'win_west'],
+  'Armory': ['win_north', 'win_east'],
+  'Kitchen': ['win_south', 'win_west'],
+  'Workshop': ['win_south', 'door_main', 'win_east'],
+  'Central Hall': ['win_north', 'win_south', 'win_west', 'win_east', 'door_main']
+};
+
 // Slotted interior positions adjacent to barricades so multiple survivors don't overlap
 export const BARRICADE_DEFENSE_SLOTS = {
   win_north: [
@@ -240,14 +248,19 @@ export class Survivor {
 
   getGuardStationTarget(station, engine) {
     if (!station) return { x: 10.0, y: 10.0 };
-    const roomSurvivors = engine.survivors.filter(s => s.isAlive() && (s.guardStation?.name === station.name || s.id === this.id));
-    if (roomSurvivors.length <= 1) return { x: station.x, y: station.y };
-
-    const survivorIdx = roomSurvivors.findIndex(s => s.id === this.id);
-    const angle = (Math.max(0, survivorIdx) * (Math.PI * 2 / roomSurvivors.length)) + 0.35;
-    const radius = 0.85;
-    const targetX = station.x + Math.cos(angle) * radius;
-    const targetY = station.y + Math.sin(angle) * radius;
+    const allLiving = engine.survivors.filter(s => s.isAlive());
+    const survivorIdx = allLiving.findIndex(s => s.id === this.id);
+    
+    // Deterministic quad offsets so multiple survivors in the same room never converge on the same point
+    const offsets = [
+      { x: -0.65, y: -0.65 },
+      { x: 0.65, y: 0.65 },
+      { x: -0.65, y: 0.65 },
+      { x: 0.65, y: -0.65 }
+    ];
+    const off = offsets[Math.max(0, survivorIdx) % offsets.length];
+    const targetX = station.x + off.x;
+    const targetY = station.y + off.y;
 
     if (engine.map && engine.map.isPositionWalkable(targetX, targetY, 0.35)) {
       return { x: targetX, y: targetY };
@@ -411,9 +424,9 @@ export class Survivor {
       const distToSpot = Math.hypot(this.x - spot.x, this.y - spot.y);
       const distToBarricade = Math.hypot(this.x - (bestBarricade.x + 0.5), this.y - (bestBarricade.y + 0.5));
 
-      if (distToSpot <= 0.85 || distToBarricade <= this.repairRange) {
+      if (distToSpot <= 0.95 || distToBarricade <= this.repairRange) {
         // Strike any threat near this window
-        const threat = engine.zombies.find(z => z.isAlive() && Math.hypot(this.x - z.x, this.y - z.y) <= 2.7);
+        const threat = engine.zombies.find(z => z.isAlive() && Math.hypot(this.x - z.x, this.y - z.y) <= 2.8);
         if (threat) {
           this.performAttack(threat, dt, engine);
           this.state = SURVIVOR_STATES.ATTACKING;
@@ -450,7 +463,15 @@ export class Survivor {
     const targetPos = this.getGuardStationTarget(station, engine);
     const stationDist = Math.hypot(this.x - targetPos.x, this.y - targetPos.y);
 
-    if (stationDist > 0.8) {
+    // Hysteresis: Only initiate moving if > 1.4 tiles away; arrive and settle once <= 0.65 tiles
+    if (this.state === SURVIVOR_STATES.GUARDING && stationDist < 1.4) {
+      this.stateDetail = `Guarding ${station.name}`;
+      this.targetBarricadeId = null;
+      this.path = [];
+      return;
+    }
+
+    if (stationDist > 0.65) {
       if (!this.path || this.path.length === 0) {
         this.path = Pathfinding.findPath(this.x, this.y, targetPos.x, targetPos.y, engine.map, engine.barricadesMap, false);
         this.pathIndex = 0;
@@ -517,23 +538,25 @@ export class Survivor {
     let bestBarricade = null;
     let highestScore = -Infinity;
 
+    const mySector = ROOM_SECTOR_BARRICADES[this.guardStation?.name] || [];
+
     for (const b of engine.barricades) {
       const bx = b.x + 0.5;
       const by = b.y + 0.5;
       const dist = Math.hypot(this.x - bx, this.y - by);
       const hpMissing = b.maxHp - b.hp;
-      const isBreachedBonus = b.isBreached ? 80 : 0;
+      const isBreachedBonus = b.isBreached ? 120 : 0;
 
-      // Count nearby zombies menacing this barricade
+      // Count nearby zombies menacing or approaching this barricade (up to 5.5 tiles outside)
       let nearbyZombies = 0;
       for (const z of engine.zombies) {
-        if (z.isAlive() && Math.hypot(z.x - bx, z.y - by) <= 3.2) {
+        if (z.isAlive() && Math.hypot(z.x - bx, z.y - by) <= 5.5) {
           nearbyZombies++;
         }
       }
 
-      // If barricade is 100% full and no zombies nearby, skip it
-      if (hpMissing <= 0 && nearbyZombies === 0) continue;
+      // Ignore pristine barricades with NO zombies anywhere near it
+      if (hpMissing < 5 && nearbyZombies === 0 && !b.isBreached) continue;
 
       // Count other repairers to spread out defense across different windows
       let otherRepairers = 0;
@@ -546,10 +569,13 @@ export class Survivor {
       }
 
       const roleBonus = this.role === 'CARPENTER' ? 35 : this.role === 'SENTINEL' ? 20 : 0;
-      const threatScore = nearbyZombies * 30;
-      const score = (hpMissing * 1.0) + isBreachedBonus + threatScore + roleBonus - (dist * 3.5) - (otherRepairers * 70);
+      const threatScore = nearbyZombies * 35;
+      const sectorBonus = mySector.includes(b.id) ? 50 : 0;
+      const currentTargetBonus = (this.targetBarricadeId === b.id) ? 65 : 0;
 
-      if (score > highestScore) {
+      const score = (hpMissing * 1.0) + isBreachedBonus + threatScore + sectorBonus + currentTargetBonus + roleBonus - (dist * 2.0) - (otherRepairers * 85);
+
+      if (score > 15 && score > highestScore) {
         highestScore = score;
         bestBarricade = b;
       }
@@ -654,14 +680,20 @@ export class Survivor {
         this.path = [];
         return;
       }
-      return;
+      const nextNode = this.path[this.pathIndex];
+      dx = nextNode.x - this.x;
+      dy = nextNode.y - this.y;
+      dist = Math.hypot(dx, dy);
     }
 
-    // Direct movement vector
+    if (dist <= 0.001) return;
+
+    // Direct movement vector along path
     let vx = (dx / dist) * speed;
     let vy = (dy / dist) * speed;
 
-    // Dynamic obstacle avoidance against other living survivors
+    // Cooperative Yielding (NO tangential spinning!)
+    // If another survivor is in front along line of travel, lower priority agent slows down to let other pass
     for (const other of engine.survivors) {
       if (other.id === this.id || !other.isAlive()) continue;
 
@@ -669,26 +701,20 @@ export class Survivor {
       const toOtherY = other.y - this.y;
       const otherDist = Math.hypot(toOtherX, toOtherY);
 
-      if (otherDist > 0.02 && otherDist < 0.95) {
-        // Dot product to check if other survivor is in front of travel
+      if (otherDist > 0.01 && otherDist < 0.90) {
         const dot = (vx * toOtherX + vy * toOtherY) / (speed * otherDist);
-        if (dot > 0.25) {
-          // Tangent (lateral) steering force to walk around
-          const perpX = -toOtherY / otherDist;
-          const perpY = toOtherX / otherDist;
-          const steerIntensity = (0.95 - otherDist) * 1.4;
-
-          vx += perpX * speed * steerIntensity;
-          vy += perpY * speed * steerIntensity;
+        if (dot > 0.35) {
+          // If we have lower priority (higher ID), stop completely and wait for other to pass
+          if (this.id > other.id) {
+            vx = 0;
+            vy = 0;
+          }
         }
       }
     }
 
-    // Normalize velocity back to intended speed
-    const currentSpeed = Math.hypot(vx, vy);
-    if (currentSpeed > 0) {
-      vx = (vx / currentSpeed) * speed;
-      vy = (vy / currentSpeed) * speed;
+    // Set aim and facing direction
+    if (Math.hypot(vx, vy) > 0.05) {
       this.aimAngle = Math.atan2(vy, vx);
       this.facingDir = Math.cos(this.aimAngle) >= 0 ? 1 : -1;
     }
@@ -712,7 +738,7 @@ export class Survivor {
     // Anti-stuck watchdog
     if (!moved || Math.hypot(this.x - (this.lastMoveX ?? this.x), this.y - (this.lastMoveY ?? this.y)) < 0.01) {
       this.stuckTicks = (this.stuckTicks || 0) + 1;
-      if (this.stuckTicks > 12) {
+      if (this.stuckTicks > 10) {
         // Skip current stuck waypoint to glide around obstacles
         this.pathIndex++;
         this.stuckTicks = 0;

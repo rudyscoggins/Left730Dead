@@ -163,7 +163,8 @@ export class Pathfinding {
     gScore[startIndex] = 0;
     openSet.push({ x: sx, y: sy, f: heuristic(sx, sy) });
 
-    const directions = [
+    // For indoor survivors, use cardinal 4-directions to pass straight through doorway centers without clipping corners
+    const directions = isZombie ? [
       { dx: 1, dy: 0 },
       { dx: -1, dy: 0 },
       { dx: 0, dy: 1 },
@@ -172,6 +173,11 @@ export class Pathfinding {
       { dx: -1, dy: 1, cost: 1.414 },
       { dx: 1, dy: -1, cost: 1.414 },
       { dx: -1, dy: -1, cost: 1.414 }
+    ] : [
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 }
     ];
 
     while (openSet.length > 0) {
